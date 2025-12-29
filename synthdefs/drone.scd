@@ -97,18 +97,53 @@ SynthDef(\chaosDrone, {
 		LFPulse.ar(osc1FreqMod, 0, osc1_pw, 2, -1)
 	]);
 
-	// Combo modes - bitwise ops approximated with audio-rate logic
-	combo = Select.ar(combo_mode, [
-		osc1,                                    // 0: OSC1
-		osc2,                                    // 1: OSC2
-		osc1 * osc2,                             // 2: RING
-		min(osc1, osc2),                         // 3: MIN
-		max(osc1, osc2),                         // 4: MAX (was PONG)
-		(osc1 + osc2).clip(-1, 1),               // 5: ADD/clip (was AND)
-		(osc1 - osc2).clip(-1, 1),               // 6: SUB/clip (was OR)
-		(osc1 * osc2.sign),                      // 7: SIGN (was XOR)
-		((osc1 + osc2) * (osc1 - osc2))          // 8: GLITCH
-	]);
+	// Combo modes - true 8-bit audio-rate bitwise ops (inlined)
+	combo = {
+		var bits = 8;
+		var maxVal = (2 ** bits) - 1;
+		// Convert to unsigned int
+		var intA = ((osc1 + 1) * 0.5 * maxVal).floor.clip(0, maxVal);
+		var intB = ((osc2 + 1) * 0.5 * maxVal).floor.clip(0, maxVal);
+		// Extract bits and compute ops
+		var andBits = (0..bits-1).collect({ |i|
+			var bitA = ((intA / (2 ** i)).floor % 2);
+			var bitB = ((intB / (2 ** i)).floor % 2);
+			(bitA * bitB) * (2 ** i);
+		}).sum;
+		var orBits = (0..bits-1).collect({ |i|
+			var bitA = ((intA / (2 ** i)).floor % 2);
+			var bitB = ((intB / (2 ** i)).floor % 2);
+			(bitA + bitB - (bitA * bitB)) * (2 ** i);
+		}).sum;
+		var xorBits = (0..bits-1).collect({ |i|
+			var bitA = ((intA / (2 ** i)).floor % 2);
+			var bitB = ((intB / (2 ** i)).floor % 2);
+			((bitA + bitB) % 2) * (2 ** i);
+		}).sum;
+		var notB = maxVal - intB;
+		var glitchBits = (0..bits-1).collect({ |i|
+			var bitA = ((intA / (2 ** i)).floor % 2);
+			var bitNotB = ((notB / (2 ** i)).floor % 2);
+			((bitA + bitNotB) % 2) * (2 ** i);
+		}).sum;
+		// Convert back to audio
+		var andSig = (andBits / maxVal * 2) - 1;
+		var orSig = (orBits / maxVal * 2) - 1;
+		var xorSig = (xorBits / maxVal * 2) - 1;
+		var glitchSig = (glitchBits / maxVal * 2) - 1;
+
+		Select.ar(combo_mode, [
+			osc1,              // 0: OSC1
+			osc2,              // 1: OSC2
+			osc1 * osc2,       // 2: RING
+			min(osc1, osc2),   // 3: MIN
+			max(osc1, osc2),   // 4: MAX
+			andSig,            // 5: AND
+			orSig,             // 6: OR
+			xorSig,            // 7: XOR
+			glitchSig          // 8: GLITCH
+		]);
+	}.value;
 
 	sig = XFade2.ar(osc1, combo, combo_mix * 2 - 1);
 

@@ -53,30 +53,24 @@ This is a **drone synthesizer** - timbral exploration via continuous parameter m
 | 1 | OSC2 | Pass through osc2 |
 | 2 | RING | Ring modulation (osc1 × osc2) |
 | 3 | MIN | Minimum of both signals |
-| 4 | PONG | Osc1 when +, osc2 when -, else 0 |
-| 5 | AND | Bitwise AND |
-| 6 | OR | Bitwise OR |
-| 7 | XOR | Bitwise XOR |
-| 8 | GLCH | Glitchy bitwise combo |
+| 4 | MAX | Maximum of both signals |
+| 5 | AND | True 8-bit AND via BitOps |
+| 6 | OR | True 8-bit OR via BitOps |
+| 7 | XOR | True 8-bit XOR via BitOps |
+| 8 | GLCH | XOR with NOT(osc2) |
 
 ```supercollider
-// Convert audio signals to 16-bit integer representation
-var osc1Bits = (osc1 * 32767).asInteger;
-var osc2Bits = (osc2 * 32767).asInteger;
-
+// Using BitOps class for true audio-rate bitwise operations
 var combo = Select.ar(comboMode, [
-    osc1,                                           // 0: OSC1
-    osc2,                                           // 1: OSC2
-    osc1 * osc2,                                    // 2: RING
-    min(osc1, osc2),                                // 3: MIN
-    Select.ar(osc1 > 0, [                           // 4: PONG
-        Select.ar(osc2 < 0, [DC.ar(0), osc2]),
-        osc1
-    ]),
-    ((osc1Bits & osc2Bits) / 32767),               // 5: AND
-    ((osc1Bits | osc2Bits) / 32767),               // 6: OR
-    ((osc1Bits ^ osc2Bits) / 32767),               // 7: XOR
-    ((osc1Bits.bitXor(osc2Bits.bitNot)) / 32767)   // 8: GLCH
+    osc1,                                    // 0: OSC1
+    osc2,                                    // 1: OSC2
+    osc1 * osc2,                             // 2: RING
+    min(osc1, osc2),                         // 3: MIN
+    max(osc1, osc2),                         // 4: MAX
+    BitOps.and(osc1, osc2),                  // 5: AND
+    BitOps.or(osc1, osc2),                   // 6: OR
+    BitOps.xor(osc1, osc2),                  // 7: XOR
+    BitOps.xor(osc1, BitOps.not(osc2))       // 8: GLCH
 ]);
 ```
 

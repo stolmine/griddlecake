@@ -66,14 +66,16 @@ s.waitForBoot({
 		} {
 			thisThread.randSeed = ~lutSeed + i; // Deterministic per-index
 			[
-				exprand(20, 2000),        // osc1_freq
+				// Oscillators - pow(1.8) moderate bias toward low frequencies
+				// ~55% of values fall in bottom third of range
+				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // osc1_freq
 				rrand(0, 3).round,        // osc1_wave
 				rrand(0.0, 1.0),          // osc1_pw
-				exprand(20, 2000),        // osc2_freq
+				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // osc2_freq
 				rrand(0, 3).round,        // osc2_wave
 				rrand(0.0, 1.0),          // osc2_pw
 				rrand(0.0, 1.0),          // osc2_track
-				exprand(0.25, 4.0),       // osc2_ratio
+				1.0.rand.pow(1.2).linexp(0, 1, 0.25, 4.0), // osc2_ratio (gentle low bias)
 				rrand(0.0, 1.0),          // fm_amount
 				rrand(0, 8).round,        // combo_mode
 				rrand(0.0, 1.0),          // combo_mix
@@ -81,7 +83,8 @@ s.waitForBoot({
 				rrand(0.0, 1.0),          // noise_level
 				rrand(0.0, 1.0),          // noise_to_osc1
 				rrand(0.0, 1.0),          // noise_to_osc2
-				exprand(20, 20000),       // filter_freq
+				// Filter - pow(1.5) gentle low bias
+				1.0.rand.pow(1.5).linexp(0, 1, 20, 20000), // filter_freq
 				rrand(0.0, 0.99),         // filter_res
 				rrand(0, 3).round,        // filter_type
 				rrand(0.0, 1.0),          // filter_track
@@ -122,16 +125,20 @@ s.waitForBoot({
 		} {
 			thisThread.randSeed = ~lutSeed + 65536 + i; // Different seed offset
 			[
+				// Lo-Fi
 				rrand(1, 16).round,       // lofi_bits
-				exprand(100, 48000),      // lofi_rate
+				1.0.rand.pow(1.5).linexp(0, 1, 100, 48000),  // lofi_rate (gentle low bias)
 				rrand(0.0, 1.0),          // lofi_mix
-				exprand(20, 2000),        // ring_freq
+				// Ring mod - moderate low bias
+				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // ring_freq
 				rrand(0, 3).round,        // ring_wave
 				rrand(0.0, 1.0),          // ring_mix
-				exprand(20, 5000),        // comb_freq
+				// Comb - moderate low bias
+				1.0.rand.pow(1.8).linexp(0, 1, 20, 5000),  // comb_freq
 				exprand(0.01, 5.0),       // comb_decay
 				rrand(0.0, 1.0),          // comb_mix
-				exprand(1, 2000),         // delay_time (ms)
+				// Delay
+				1.0.rand.pow(1.2).linexp(0, 1, 1, 2000),   // delay_time (ms)
 				rrand(0.0, 0.99),         // delay_fb
 				rrand(0.0, 1.0),          // delay_mix
 				rrand(0.0, 1.0),          // clouds_pos

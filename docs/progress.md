@@ -17,6 +17,8 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - EQ and compressor (SClang control only)
 - Per-param Lag.kr for smooth morphing
 - True parameter value interpolation (not index traversal)
+- True 8-bit audio-rate bitwise ops (AND, OR, XOR, GLITCH)
+- Weighted frequency distribution in LUT (bias toward low frequencies)
 
 **Next Steps:**
 1. Grid/oscgrid OSC communication
@@ -32,7 +34,8 @@ See [Implementation](implementation.md) for the high-level roadmap.
 **Implemented Phase 1 Core:**
 - `synthdefs/drone.scd` - Complete drone voice
   - 2 oscillators (sin/tri/saw/square) with noise modulation
-  - 9 combo modes (OSC1, OSC2, RING, MIN, MAX, ADD, SUB, SIGN, GLITCH)
+  - 9 combo modes (OSC1, OSC2, RING, MIN, MAX, AND, OR, XOR, GLITCH)
+  - True 8-bit audio-rate bitwise ops for modes 5-8
   - SVF multimode filter (lowpass default)
   - FX chain: Lo-Fi → Ring Mod → Comb → Delay → MiClouds → EQ → Comp → Limiter
   - Per-param `Lag.kr(param, slew_time)` for smooth morphing
@@ -66,6 +69,19 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Fixed LUT seed persistence (now fresh each reload)
 - Fixed slew to interpolate param values, not traverse random indices
 
+**True Bitwise Ops (inlined in SynthDef):**
+- 8-bit audio-rate AND, OR, XOR operations
+- Converts audio → 8-bit unsigned int → bitwise op → audio
+- Uses `.collect` at compile time to build UGen graph
+- `BitOps.sc` class also available for standalone use
+
+**Weighted LUT Frequency Distribution:**
+- `rand.pow(n).linexp(...)` biases toward low frequencies
+- osc1/2_freq: pow(1.8) → ~55% in bottom third
+- filter_freq: pow(1.5) → gentle low bias
+- ring/comb_freq: pow(1.8) → moderate low bias
+- Creates more musical, bass-heavy random states
+
 ---
 
 ## Design Decisions
@@ -78,6 +94,8 @@ See [Implementation](implementation.md) for the high-level roadmap.
 | 2025-12-28 | Value interpolation | Slew should morph params, not traverse random states |
 | 2025-12-28 | State 0 = home base | Predictable reference: 55Hz sine, dry FX |
 | 2025-12-28 | EQ/Comp outside LUT | Master bus control, not part of chaotic exploration |
+| 2025-12-28 | Inlined bitwise ops | Avoids class dependency, self-contained SynthDef |
+| 2025-12-28 | Weighted freq distribution | More musical random states, favors bass |
 
 ---
 
@@ -89,6 +107,6 @@ _None currently._
 
 ## Notes
 
-- Combo modes 5-8 are approximations (true bitwise ops don't work on audio UGens)
 - SVF filter currently locked to lowpass (type switching needs work)
 - MiClouds requires mi-UGens extension
+- BitOps class in `classes/` requires symlink to Extensions + recompile to use standalone

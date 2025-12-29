@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.cylonix.com)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd chaos drone synth specification v2.0.0\n\nComplete technical specification for Griddlecake - a Monome Grid controlled\ndrone synthesizer using 16-bit chaotic lookup table synthesis.\n\nKey design decisions:\n- Drone architecture \\(no EG/VCA, always sounding\\)\n- Pure SuperCollider \\(no Rust/CLI layer\\)\n- Cyclebox-inspired combo modes \\(9 bitwise waveform combinations\\)\n- MiClouds granular with internal reverb\n- 39 LUT parameters across voice and FX chain\n- oscgrid \\(iPad\\) initially, hardware Grid later\n\nDocumentation split into modular files for agent reference:\n- overview, core_concepts, grid_layout\n- voice_architecture, fx_chain\n- sequencer, clock_transport\n- state_persistence, implementation, technical_notes\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(xattr:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nImplement Phase 1 core engine with split LUT architecture\n\nCore implementation:\n- drone.scd: Complete SynthDef with 39 LUT params + EQ/compressor\n  - 2 oscillators, 9 combo modes, SVF filter\n  - FX chain: Lo-Fi, Ring Mod, Comb, Delay, MiClouds\n  - Per-param Lag.kr for smooth morphing\n- main.scd: Boot file with full state management\n  - Split LUT: Voice \\(20 params\\) + FX \\(19 params\\)\n  - State 0 = home base \\(55Hz sine, dry FX\\)\n  - True parameter value interpolation in slew\n  - EQ/compressor controls \\(SClang only\\)\n- LUT.sc class for standalone LUT operations\n\nKey features:\n- Fresh seed on each reload \\(~useSeed to override\\)\n- Separate voice/FX state control\n- Test helpers: ~testVoice, ~testFx, ~randomize\n- ~showSeed, ~setSlew, ~eq, ~comp functions\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}
