@@ -44,12 +44,32 @@ local oscsourceport = 9000           -- TouchOSC incoming port
 
 **IMPORTANT:** oscgrid uses **1-indexed** coordinates (1-16, 1-8), not 0-indexed.
 
-| Direction | Message | Args | Notes |
-|-----------|---------|------|-------|
-| In (key press) | `/grid/key x y` | `state` (int) | x: 1-16, y: 1-8, state: 1=down/0=up |
-| Out (LED) | `/grid/led x y` | `brightness` (int) | brightness: 0-15 |
+**CRITICAL:** The x and y coordinates are embedded IN THE PATH, not as separate arguments:
+
+| Direction | Message Path | Args | Example |
+|-----------|-------------|------|---------|
+| In (key press) | `/grid/key X Y` | `state` (float) | `/grid/key 9 4` with arg `1.0` |
+| Out (LED) | `/grid/led X Y` | `brightness` (int) | `/grid/led 9 4` with arg `15` |
+
+The path contains spaces: `/grid/key 9 4` is a single OSC address.
 
 **No prefix** - oscgrid uses bare `/grid/...` paths.
+
+**SC Implementation Note:** Standard `OSCdef` does not match paths with embedded spaces. Use `thisProcess.addOSCRecvFunc` instead:
+
+```supercollider
+~handler = { |msg, time, addr|
+    var path = msg[0].asString;
+    if (path.beginsWith("/grid/key")) {
+        var parts = path.split($ );
+        var x = parts[1].asInteger;
+        var y = parts[2].asInteger;
+        var state = msg[1];
+        // handle key...
+    };
+};
+thisProcess.addOSCRecvFunc(~handler);
+```
 
 ---
 

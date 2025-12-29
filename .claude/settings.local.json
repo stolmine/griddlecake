@@ -14,7 +14,8 @@
       "Bash(ln:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

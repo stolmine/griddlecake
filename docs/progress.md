@@ -83,6 +83,15 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Created symlink: `~/Library/.../Extensions/griddlecake` → `classes/`
 - **Requires:** SuperCollider recompile to load GridInterface class
 
+**Debugging Session - OSC Path Format Discovery:**
+- oscgrid TouchOSC template embeds x,y coordinates IN the path: `/grid/key 9 4`
+- This is NOT `/grid/key` with args `[9, 4, state]`
+- Standard `OSCdef` cannot match paths with embedded spaces
+- Solution: Use `thisProcess.addOSCRecvFunc` for low-level OSC handling
+- LED output uses same format: `/grid/led 9 4` with brightness as arg
+- iPad IP discovered: `192.168.1.244` (was hardcoded as `10.0.1.11`)
+- oscgrid repo (`~/repos/oscgrid`) is norns-specific, but TouchOSC template works directly with SC
+
 ---
 
 ### 2025-12-28 (Session 1)
