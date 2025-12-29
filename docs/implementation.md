@@ -11,47 +11,51 @@ Build phases, priorities, and getting started guide.
 | # | Task | Status |
 |---|------|--------|
 | 1 | LUT generation with seeded randomness (39 params) | ✅ |
-| 2 | Parameter grid → DAC state → LUT lookup | ⏳ |
-| 3 | Drone synth voice (2 osc + combo modes + filter) | ✅ |
-| 4 | Slew on index integer | ✅ |
-| 5 | Grid/oscgrid OSC communication | ⏳ |
+| 2 | Drone synth voice (2 osc + combo modes + filter) | ✅ |
+| 3 | Complete FX chain (Lo-Fi → Ring → Comb → Delay → Clouds) | ✅ |
+| 4 | Split LUT architecture (Voice 20 + FX 19) | ✅ |
+| 5 | Slew with true parameter interpolation | ✅ |
+| 6 | True 8-bit audio-rate bitwise ops | ✅ |
+| 7 | Weighted LUT frequency distribution | ✅ |
 
-### Phase 2: Voice Complete
+### Phase 2: Grid Integration
 
 | # | Task | Status |
 |---|------|--------|
-| 6 | Cyclebox combo modes (9 modes) | ⏳ |
-| 7 | Noise section (type, level, FM routing) | ⏳ |
-| 8 | Timbral FX chain (Lo-Fi, Ring Mod, Comb Res) | ⏳ |
-| 9 | Delay + MiClouds integration | ⏳ |
-| 10 | Limiter (inline, always on) | ⏳ |
+| 8 | GridInterface.sc class (LED buffer, dirty flag, 30fps refresh) | ✅ |
+| 9 | oscgrid connection (1-indexed conversion, /grid/key, /grid/led) | ✅ |
+| 10 | Button zone detection (nav, param, slew, util, gesture, seq) | ✅ |
+| 11 | Param grid → 16-bit DAC → LUT lookup wiring | ✅ |
+| 12 | LED feedback (brightness levels, state indication) | ✅ |
+| 13 | Page switching (Synth/FX via s/a navigation) | ✅ |
+| 14 | Connection test utilities | ✅ |
 
 ### Phase 3: Gestures
 
 | # | Task | Status |
 |---|------|--------|
-| 11 | Gesture recording/playback (state sequences) | ⏳ |
-| 12 | Action resolution (clear/invert/shift → states) | ⏳ |
-| 13 | 16 gesture slots with visual feedback | ⏳ |
+| 15 | Gesture recording/playback (state sequences) | ⏳ |
+| 16 | Action resolution (clear/invert/shift → states) | ⏳ |
+| 17 | 16 gesture slots with visual feedback | ⏳ |
 
 ### Phase 4: Sequencer
 
 | # | Task | Status |
 |---|------|--------|
-| 14 | 4-row × 16-step sequencer | ⏳ |
-| 15 | Per-row loop length | ⏳ |
-| 16 | Gesture triggering and blending (MEAN) | ⏳ |
-| 17 | Clock → MiClouds trigger routing | ⏳ |
-| 18 | Live intervention during playback | ⏳ |
+| 18 | 4-row × 16-step sequencer | ⏳ |
+| 19 | Per-row loop length | ⏳ |
+| 20 | Gesture triggering and blending (MEAN) | ⏳ |
+| 21 | Clock → MiClouds trigger routing | ⏳ |
+| 22 | Live intervention during playback | ⏳ |
 
 ### Phase 5: Polish
 
 | # | Task | Status |
 |---|------|--------|
-| 19 | Tap tempo and transport | ⏳ |
-| 20 | Save/load system (JSON) | ⏳ |
-| 21 | Visual feedback (brightness for states) | ⏳ |
-| 22 | Slew parameter mapping (4×4 grid) | ⏳ |
+| 23 | Tap tempo and transport | ⏳ |
+| 24 | Save/load system (JSON) | ⏳ |
+| 25 | Visual feedback refinement | ⏳ |
+| 26 | Slew parameter mapping (4×4 grid) | ⏳ |
 
 ### Phase 6: Advanced Features (v2)
 

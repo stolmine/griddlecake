@@ -425,6 +425,105 @@ s.waitForBoot({
 	};
 
 	// ========================================
+	// GRID INTEGRATION
+	// ========================================
+
+	// Grid config - UPDATE THESE for your setup
+	~gridIP = "192.168.1.244";  // iPad IP for oscgrid
+	~gridPort = 9000;           // TouchOSC receive port
+
+	// Current page (0 = synth/voice, 1 = FX)
+	~currentPage = 0;
+
+	// Current 16-bit DAC state for param grid
+	~dacState = 0;
+
+	// Connect to grid
+	~connectGrid = {
+		"[Griddlecake] Connecting to grid at %:%".format(~gridIP, ~gridPort).postln;
+		~grid = GridInterface(~gridIP, ~gridPort, oscgrid: true);
+
+		// Set up key handler
+		~grid.key({ |x, y, state|
+			var zone = ~grid.getZone(x, y);
+
+			if (state == 1) {
+				switch(zone,
+					\navigation, {
+						// Column 0: page select
+						if (y == 0) { ~currentPage = 0; "[Grid] Page: Synth".postln };
+						if (y == 1) { ~currentPage = 1; "[Grid] Page: FX".postln };
+						~updateGridLEDs.();
+					},
+					\paramGrid, {
+						// Cols 1-4, rows 0-3: 16-bit DAC toggle
+						var bitPos = ((y * 4) + (x - 1));
+						~dacState = ~dacState.bitXor(1 << (15 - bitPos));
+						"[Grid] DAC state: % (bit % toggled)".format(~dacState, 15 - bitPos).postln;
+
+						// Apply to current page's LUT
+						if (~currentPage == 0) {
+							~applyVoiceState.(~dacState);
+						} {
+							~applyFxState.(~dacState);
+						};
+						~updateGridLEDs.();
+					},
+					\slewGrid, {
+						// Cols 5-8, rows 0-3: slew time select
+						var slewIdx = ((y * 4) + (x - 5));
+						var slewTime = slewIdx.linexp(0, 15, 0.01, 10.0);
+						~setSlew.(slewTime);
+					},
+					\utilities, {
+						// Cols 9-11, rows 0-3: row operations
+						"[Grid] Utility: %, %".format(x, y).postln;
+					},
+					\gestures, {
+						// Cols 12-15, rows 0-3: gesture slots
+						var slot = ((y * 4) + (x - 12));
+						"[Grid] Gesture slot: %".format(slot).postln;
+					},
+					\sequencer, {
+						// Rows 4-7: sequencer
+						var step = x;
+						var row = y - 4;
+						"[Grid] Seq step: %, row: %".format(step, row).postln;
+					}
+				);
+			};
+		});
+
+		// LED update function
+		~updateGridLEDs = {
+			// Clear param grid
+			4.do { |y| 4.do { |x|
+				var bitPos = ((y * 4) + x);
+				var isOn = (~dacState >> (15 - bitPos)) & 1;
+				~grid.led(x + 1, y, isOn * GridInterface.ledFull);
+			}};
+
+			// Page indicator
+			~grid.led(0, 0, if(~currentPage == 0) { GridInterface.ledFull } { GridInterface.ledDim });
+			~grid.led(0, 1, if(~currentPage == 1) { GridInterface.ledFull } { GridInterface.ledDim });
+		};
+
+		// Initial LED state
+		~updateGridLEDs.();
+
+		"[Griddlecake] Grid connected".postln;
+	};
+
+	// Disconnect grid
+	~disconnectGrid = {
+		if (~grid.notNil) {
+			~grid.free;
+			~grid = nil;
+			"[Griddlecake] Grid disconnected".postln;
+		};
+	};
+
+	// ========================================
 	// BOOT COMPLETE
 	// ========================================
 
@@ -453,6 +552,10 @@ s.waitForBoot({
 	"[Griddlecake]   ~eqBypass.()                   - Bypass EQ".postln;
 	"[Griddlecake]   ~comp.(th, rat, atk, rel, mk)  - Set compressor".postln;
 	"[Griddlecake]   ~compBypass.()                 - Bypass compressor".postln;
+	"[Griddlecake] Grid:".postln;
+	"[Griddlecake]   ~connectGrid.()               - Connect to oscgrid".postln;
+	"[Griddlecake]   ~disconnectGrid.()            - Disconnect grid".postln;
+	"[Griddlecake]   ~gridIP = \"x.x.x.x\"           - Set iPad IP".postln;
 	"[Griddlecake] ========================================".postln;
 
 	// Apply initial state

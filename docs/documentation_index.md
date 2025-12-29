@@ -19,6 +19,7 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 | [State Persistence](state_persistence.md) | JSON save/load, LUT regeneration |
 | [Implementation](implementation.md) | Phases, priorities, getting started |
 | [Technical Notes](technical_notes.md) | Performance, SC architecture, OSC protocol |
+| [Grid Communication](grid_communication.md) | OSC protocol, oscgrid/serialosc setup, timing |
 
 ---
 

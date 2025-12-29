@@ -8,7 +8,7 @@ See [Implementation](implementation.md) for the high-level roadmap.
 
 ## Current Status
 
-**Phase:** Phase 1 - Core Engine (functional, testing)
+**Phase:** Phase 2 - Grid Integration (in progress)
 
 **Completed:**
 - drone.scd SynthDef (39 LUT params + EQ/comp + per-param slew)
@@ -21,15 +21,71 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Weighted frequency distribution in LUT (bias toward low frequencies)
 
 **Next Steps:**
-1. Grid/oscgrid OSC communication
-2. Parameter grid → DAC state → LUT lookup
-3. Gesture recording
+1. Test oscgrid connection (iPad + TouchOSC)
+2. Verify param grid → DAC → LUT works
+3. Implement remaining zones (slew, utilities, gestures, sequencer)
 
 ---
 
 ## Session Log
 
-### 2025-12-28
+### 2025-12-28 (Session 2)
+
+**Grid Communication Research & Planning:**
+- Explored local oscgrid repo (`~/repos/oscgrid`)
+- Researched serialosc protocol (Monome official docs)
+- Created `grid_communication.md` spec document
+
+**Key Findings - oscgrid:**
+- Uses `/grid/key x y` + `/grid/led x y` messages (no prefix)
+- **1-indexed** coordinates (1-16, 1-8) - must convert to 0-indexed internally
+- Default config: IP 10.0.1.11, port 9000 (edit `lib/oscgrid.lua` lines 6-7)
+- TouchOSC template in `.touchosc` format (zip with XML)
+
+**Key Findings - serialosc:**
+- Port 12002 for device discovery
+- Uses `/prefix/grid/key x y state` format (0-indexed)
+- Supports batch LED updates: `/grid/led/level/row`, `/grid/led/level/map`
+- Varibright: 16 brightness levels (0-15)
+
+**Critical Timing Consideration:**
+- **Never** update LEDs on every key event - causes Grid blackout!
+- Solution: Timer-driven refresh at ~30fps with dirty flag pattern
+- Store LED state in buffer, only send when dirty flag set
+
+**GridInterface.sc Design:**
+- LED buffer (16x8 array of brightness values)
+- Dirty flag for efficient refresh
+- 30fps timer-driven `sendLEDs` routine
+- Coordinate conversion (oscgrid 1-indexed → internal 0-indexed)
+- Button zone detection (nav, param, slew, util, gesture, seq)
+
+**Updated Implementation Roadmap:**
+- Phase 1 now complete (7/7 tasks)
+- Phase 2 "Grid Integration" defined (7 tasks: #8-14)
+- Renumbered all subsequent phases
+
+**Implemented Grid Integration:**
+- `classes/GridInterface.sc` - Full implementation (129 lines)
+  - LED buffer with dirty flag pattern
+  - 30fps timer-driven refresh
+  - oscgrid (1-indexed) and serialosc (0-indexed) support
+  - Zone detection helper
+  - Brightness level constants
+- `tests/test_grid.scd` - Connection test utilities
+  - Quick connection, echo, zone, sweep, latency tests
+  - Hardware Grid discovery helper
+- `main.scd` updated with grid integration
+  - `~connectGrid.()` / `~disconnectGrid.()`
+  - Param grid → 16-bit DAC → LUT lookup
+  - Page switching (Synth/FX)
+  - LED feedback for param state
+- Created symlink: `~/Library/.../Extensions/griddlecake` → `classes/`
+- **Requires:** SuperCollider recompile to load GridInterface class
+
+---
+
+### 2025-12-28 (Session 1)
 
 **Implemented Phase 1 Core:**
 - `synthdefs/drone.scd` - Complete drone voice
