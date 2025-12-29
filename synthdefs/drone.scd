@@ -14,7 +14,7 @@ SynthDef(\chaosDrone, {
 	clouds_tex=0.5, clouds_mode=0, clouds_rvb=0, clouds_mix=0,
 	output_level=0.5,
 	t_clock=0,
-	slew_time=0.1,
+	slew_time=0.1, slew_curve=0,
 	// EQ (not in LUT - SClang control only)
 	eq_low_freq=200, eq_low_gain=0,
 	eq_mid_freq=1000, eq_mid_gain=0, eq_mid_q=0.5,
@@ -27,47 +27,47 @@ SynthDef(\chaosDrone, {
 	var carrier, lofi, resonated, delayed;
 	var cutoff;
 
-	// Per-param slew
-	osc1_freq = Lag.kr(osc1_freq, slew_time);
-	osc1_wave = Lag.kr(osc1_wave, slew_time);
-	osc1_pw = Lag.kr(osc1_pw, slew_time);
-	osc2_freq = Lag.kr(osc2_freq, slew_time);
-	osc2_wave = Lag.kr(osc2_wave, slew_time);
-	osc2_pw = Lag.kr(osc2_pw, slew_time);
-	osc2_track = Lag.kr(osc2_track, slew_time);
-	osc2_ratio = Lag.kr(osc2_ratio, slew_time);
-	fm_amount = Lag.kr(fm_amount, slew_time);
-	combo_mode = Lag.kr(combo_mode, slew_time);
-	combo_mix = Lag.kr(combo_mix, slew_time);
-	noise_type = Lag.kr(noise_type, slew_time);
-	noise_level = Lag.kr(noise_level, slew_time);
-	noise_to_osc1 = Lag.kr(noise_to_osc1, slew_time);
-	noise_to_osc2 = Lag.kr(noise_to_osc2, slew_time);
-	filter_freq = Lag.kr(filter_freq, slew_time);
-	filter_res = Lag.kr(filter_res, slew_time);
-	filter_type = Lag.kr(filter_type, slew_time);
-	filter_track = Lag.kr(filter_track, slew_time);
-	lofi_bits = Lag.kr(lofi_bits, slew_time);
-	lofi_rate = Lag.kr(lofi_rate, slew_time);
-	lofi_mix = Lag.kr(lofi_mix, slew_time);
-	ring_freq = Lag.kr(ring_freq, slew_time);
-	ring_wave = Lag.kr(ring_wave, slew_time);
-	ring_mix = Lag.kr(ring_mix, slew_time);
-	comb_freq = Lag.kr(comb_freq, slew_time);
-	comb_decay = Lag.kr(comb_decay, slew_time);
-	comb_mix = Lag.kr(comb_mix, slew_time);
-	delay_time = Lag.kr(delay_time, slew_time);
-	delay_fb = Lag.kr(delay_fb, slew_time);
-	delay_mix = Lag.kr(delay_mix, slew_time);
-	clouds_pos = Lag.kr(clouds_pos, slew_time);
-	clouds_size = Lag.kr(clouds_size, slew_time);
-	clouds_dens = Lag.kr(clouds_dens, slew_time);
-	clouds_tex = Lag.kr(clouds_tex, slew_time);
-	clouds_mode = Lag.kr(clouds_mode, slew_time);
-	clouds_rvb = Lag.kr(clouds_rvb, slew_time);
-	clouds_mix = Lag.kr(clouds_mix, slew_time);
-	output_level = Lag.kr(output_level, slew_time);
-	t_clock = Lag.kr(t_clock, slew_time);
+	// Per-param slew with curve (VarLag: in, time, warp)
+	osc1_freq = VarLag.kr(osc1_freq, slew_time, slew_curve);
+	osc1_wave = VarLag.kr(osc1_wave, slew_time, slew_curve);
+	osc1_pw = VarLag.kr(osc1_pw, slew_time, slew_curve);
+	osc2_freq = VarLag.kr(osc2_freq, slew_time, slew_curve);
+	osc2_wave = VarLag.kr(osc2_wave, slew_time, slew_curve);
+	osc2_pw = VarLag.kr(osc2_pw, slew_time, slew_curve);
+	osc2_track = VarLag.kr(osc2_track, slew_time, slew_curve);
+	osc2_ratio = VarLag.kr(osc2_ratio, slew_time, slew_curve);
+	fm_amount = VarLag.kr(fm_amount, slew_time, slew_curve);
+	combo_mode = VarLag.kr(combo_mode, slew_time, slew_curve);
+	combo_mix = VarLag.kr(combo_mix, slew_time, slew_curve);
+	noise_type = VarLag.kr(noise_type, slew_time, slew_curve);
+	noise_level = VarLag.kr(noise_level, slew_time, slew_curve);
+	noise_to_osc1 = VarLag.kr(noise_to_osc1, slew_time, slew_curve);
+	noise_to_osc2 = VarLag.kr(noise_to_osc2, slew_time, slew_curve);
+	filter_freq = VarLag.kr(filter_freq, slew_time, slew_curve);
+	filter_res = VarLag.kr(filter_res, slew_time, slew_curve);
+	filter_type = VarLag.kr(filter_type, slew_time, slew_curve);
+	filter_track = VarLag.kr(filter_track, slew_time, slew_curve);
+	lofi_bits = VarLag.kr(lofi_bits, slew_time, slew_curve);
+	lofi_rate = VarLag.kr(lofi_rate, slew_time, slew_curve);
+	lofi_mix = VarLag.kr(lofi_mix, slew_time, slew_curve);
+	ring_freq = VarLag.kr(ring_freq, slew_time, slew_curve);
+	ring_wave = VarLag.kr(ring_wave, slew_time, slew_curve);
+	ring_mix = VarLag.kr(ring_mix, slew_time, slew_curve);
+	comb_freq = VarLag.kr(comb_freq, slew_time, slew_curve);
+	comb_decay = VarLag.kr(comb_decay, slew_time, slew_curve);
+	comb_mix = VarLag.kr(comb_mix, slew_time, slew_curve);
+	delay_time = VarLag.kr(delay_time, slew_time, slew_curve);
+	delay_fb = VarLag.kr(delay_fb, slew_time, slew_curve);
+	delay_mix = VarLag.kr(delay_mix, slew_time, slew_curve);
+	clouds_pos = VarLag.kr(clouds_pos, slew_time, slew_curve);
+	clouds_size = VarLag.kr(clouds_size, slew_time, slew_curve);
+	clouds_dens = VarLag.kr(clouds_dens, slew_time, slew_curve);
+	clouds_tex = VarLag.kr(clouds_tex, slew_time, slew_curve);
+	clouds_mode = VarLag.kr(clouds_mode, slew_time, slew_curve);
+	clouds_rvb = VarLag.kr(clouds_rvb, slew_time, slew_curve);
+	clouds_mix = VarLag.kr(clouds_mix, slew_time, slew_curve);
+	output_level = VarLag.kr(output_level, slew_time, slew_curve);
+	t_clock = VarLag.kr(t_clock, slew_time, slew_curve);
 
 	// Signal flow
 	noise = Select.ar(noise_type, [

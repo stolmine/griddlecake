@@ -7,11 +7,11 @@ Physical layout and interaction model for 128 Grid (16×8).
 ## Physical Layout
 
 ```
-Column: 0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
-Row 0:  s [p  p  p  p][l  l  l  l] -  i  > [g  g  g  g]
-Row 1:  a [p  p  p  p][l  l  l  l] -  i  > [g  g  g  g]
-Row 2:  ; [p  p  p  p][l  l  l  l] -  i  > [g  g  g  g]
-Row 3:  : [p  p  p  p][l  l  l  l] -  i  > [g  g  g  g]
+Column: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+Row 0:  s [p  p  p  p][-  i  >][l  l  l  l][g  g  g  g]
+Row 1:  a [p  p  p  p][-  i  >][l  l  l  l][g  g  g  g]
+Row 2:  ; [p  p  p  p][-  i  >][.  .  .  .][g  g  g  g]
+Row 3:  : [p  p  p  p][-  i  >][.  .  .  .][g  g  g  g]
 Row 4:  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
 Row 5:  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
 Row 6:  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
@@ -21,8 +21,9 @@ Legend:
   s/a   = Page select (synth/fx)
   ;/:   = Tap tempo / Transport
   p     = Parameter grid (4×4 DAC bits)
-  l     = Slew grid (4×4)
-  -/i/> = Row actions (clear/invert/shift)
+  -/i/> = Utilities (clear/invert/shift row)
+  l     = Slew grid (time/curve)
+  .     = Deferred (dim)
   g     = Gesture slots (4×4 = 16 slots)
   x     = Sequencer (4 rows × 16 steps)
 ```
@@ -81,26 +82,30 @@ Bit layout:
 
 ---
 
-### Slew Grid (Cols 5-8, Rows 0-3)
+### Utilities (Cols 5-7, Rows 0-3)
 
-| Row | Function | Values |
-|-----|----------|--------|
-| 0 | Rise time | 4 bits → 16 time values (10ms-10s) |
-| 1 | Fall time | 4 bits → 16 time values (10ms-10s) |
-| 2 | Curve shape | 4 bits → 16 values (-8 to +8) |
-| 3 | Per-param offset | Deferred to v2 |
-
----
-
-### Utilities (Cols 9-11, Rows 0-3)
+Row operations on the param grid. Each row button operates on the corresponding param grid row.
 
 | Button | Position | Function |
 |--------|----------|----------|
-| **-** | (9, 0-3) | Clear row in active grid |
-| **i** | (10, 0-3) | Invert row in active grid |
-| **>** | (11, 0-3) | Shift row right in active grid |
+| **-** | (5, 0-3) | Clear row (zero all 4 bits) |
+| **i** | (6, 0-3) | Invert row (XOR with 0xF) |
+| **>** | (7, 0-3) | Shift row right (rotate within 4 bits) |
 
-Actions apply to whichever grid is active (param or slew).
+**Brightness:** Dim at rest, medium on touch.
+
+---
+
+### Slew Grid (Cols 8-11, Rows 0-3)
+
+| Row | Function | Values |
+|-----|----------|--------|
+| 0 | Time | 4 bits → 16 time values (10ms-10s exp) |
+| 1 | Curve | 4 bits → 16 values (-8 to +8 linear) |
+| 2 | Time offset | Deferred |
+| 3 | Curve offset | Deferred |
+
+Uses VarLag for smooth parameter transitions with curve shaping.
 
 ---
 

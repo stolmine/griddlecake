@@ -372,10 +372,22 @@ s.waitForBoot({
 		~lutSeed;  // Return seed value
 	};
 
-	// Set slew time
-	~setSlew = { |time|
-		~drone.set(\slew_time, time);
-		"[Griddlecake] Slew time: % sec".format(time).postln;
+	// Set slew time (also updates grid state to nearest match)
+	~setSlew = { |time, curve|
+		var timeBits = time.explin(0.01, 10.0, 0, 15).round.asInteger.clip(0, 15);
+		~slewTimeBits = timeBits;
+		if (curve.notNil) {
+			var curveBits = curve.linlin(-8, 8, 0, 15).round.asInteger.clip(0, 15);
+			~slewCurveBits = curveBits;
+		};
+		~applySlew.();
+	};
+
+	// Set slew curve only
+	~setCurve = { |curve|
+		var curveBits = curve.linlin(-8, 8, 0, 15).round.asInteger.clip(0, 15);
+		~slewCurveBits = curveBits;
+		~applySlew.();
 	};
 
 	// ========================================
@@ -435,11 +447,36 @@ s.waitForBoot({
 	// Current page (0 = synth/voice, 1 = FX)
 	~currentPage = 0;
 
-	// Current 16-bit DAC state for param grid
-	~dacState = 0;
+	// Separate 16-bit DAC states for each page
+	~voiceDacState = 0;
+	~fxDacState = 0;
+
+	// Slew grid state (4-bit each, 0-15)
+	~slewTimeBits = 0;    // Row 0: time (10ms-10s)
+	~slewCurveBits = 0;   // Row 1: curve (-8 to +8)
+	// Row 2, 3: deferred (time offset, curve offset)
+
+	// Convert slew bits to actual values
+	~getSlewTime = { ~slewTimeBits.linexp(0, 15, 0.01, 10.0) };
+	~getSlewCurve = { ~slewCurveBits.linlin(0, 15, -8, 8) };
+
+	// Apply current slew settings to synth
+	~applySlew = {
+		var time = ~getSlewTime.();
+		var curve = ~getSlewCurve.();
+		~drone.set(\slew_time, time, \slew_curve, curve);
+		"[Grid] Slew: %s, curve %".format(time.round(0.001), curve.round(0.1)).postln;
+	};
 
 	// Connect to grid
 	~connectGrid = {
+		// Disconnect existing grid first to prevent duplicate handlers
+		if (~grid.notNil) {
+			"[Griddlecake] Disconnecting existing grid...".postln;
+			~grid.free;
+			~grid = nil;
+		};
+
 		"[Griddlecake] Connecting to grid at %:%".format(~gridIP, ~gridPort).postln;
 		~grid = GridInterface(~gridIP, ~gridPort, oscgrid: true);
 
@@ -458,26 +495,77 @@ s.waitForBoot({
 					\paramGrid, {
 						// Cols 1-4, rows 0-3: 16-bit DAC toggle
 						var bitPos = ((y * 4) + (x - 1));
-						~dacState = ~dacState.bitXor(1 << (15 - bitPos));
-						"[Grid] DAC state: % (bit % toggled)".format(~dacState, 15 - bitPos).postln;
 
-						// Apply to current page's LUT
+						// Toggle bit on current page's DAC state
 						if (~currentPage == 0) {
-							~applyVoiceState.(~dacState);
+							~voiceDacState = ~voiceDacState.bitXor(1 << (15 - bitPos));
+							~applyVoiceState.(~voiceDacState);
+							"[Grid] Voice DAC: % (bit % toggled)".format(~voiceDacState, 15 - bitPos).postln;
 						} {
-							~applyFxState.(~dacState);
+							~fxDacState = ~fxDacState.bitXor(1 << (15 - bitPos));
+							~applyFxState.(~fxDacState);
+							"[Grid] FX DAC: % (bit % toggled)".format(~fxDacState, 15 - bitPos).postln;
 						};
 						~updateGridLEDs.();
 					},
 					\slewGrid, {
-						// Cols 5-8, rows 0-3: slew time select
-						var slewIdx = ((y * 4) + (x - 5));
-						var slewTime = slewIdx.linexp(0, 15, 0.01, 10.0);
-						~setSlew.(slewTime);
+						// Cols 8-11, rows 0-3: slew parameters
+						var col = x - 8;  // 0-3 within slew grid
+						var bitPos = 3 - col;  // bit 3 is leftmost
+						var bitMask = 1 << bitPos;
+
+						if (y == 0) {
+							~slewTimeBits = ~slewTimeBits.bitXor(bitMask);
+							~applySlew.();
+						};
+						if (y == 1) {
+							~slewCurveBits = ~slewCurveBits.bitXor(bitMask);
+							~applySlew.();
+						};
+						// Rows 2-3: deferred
+
+						~updateGridLEDs.();
 					},
 					\utilities, {
-						// Cols 9-11, rows 0-3: row operations
-						"[Grid] Utility: %, %".format(x, y).postln;
+						// Cols 5-7, rows 0-3: row operations on param grid
+						// Row 0: bits 15-12, Row 1: bits 11-8, Row 2: bits 7-4, Row 3: bits 3-0
+						var rowShift = (3 - y) * 4;  // bit position of row's LSB
+						var rowMask = 0xF << rowShift;  // mask for this row's 4 bits
+						var dacState = if(~currentPage == 0) { ~voiceDacState } { ~fxDacState };
+						var rowBits = (dacState & rowMask) >> rowShift;  // extract row bits
+						var newRowBits, newDacState;
+
+						// Flash button at medium brightness
+						~grid.led(x, y, GridInterface.ledMedium);
+
+						if (x == 5) {
+							// Clear: zero the row
+							newRowBits = 0;
+							"[Grid] Clear row %".format(y).postln;
+						};
+						if (x == 6) {
+							// Invert: XOR with 0xF
+							newRowBits = rowBits.bitXor(0xF);
+							"[Grid] Invert row %".format(y).postln;
+						};
+						if (x == 7) {
+							// Shift right: rotate within 4 bits
+							newRowBits = ((rowBits >> 1) | ((rowBits & 1) << 3)) & 0xF;
+							"[Grid] Shift row %".format(y).postln;
+						};
+
+						// Apply new row bits to DAC state
+						newDacState = (dacState & rowMask.bitNot) | (newRowBits << rowShift);
+
+						if (~currentPage == 0) {
+							~voiceDacState = newDacState;
+							~applyVoiceState.(~voiceDacState);
+						} {
+							~fxDacState = newDacState;
+							~applyFxState.(~fxDacState);
+						};
+
+						~updateGridLEDs.();
 					},
 					\gestures, {
 						// Cols 12-15, rows 0-3: gesture slots
@@ -496,12 +584,33 @@ s.waitForBoot({
 
 		// LED update function
 		~updateGridLEDs = {
-			// Clear param grid
+			// Show current page's DAC state on param grid (cols 1-4)
+			var dacState = if(~currentPage == 0) { ~voiceDacState } { ~fxDacState };
+
 			4.do { |y| 4.do { |x|
 				var bitPos = ((y * 4) + x);
-				var isOn = (~dacState >> (15 - bitPos)) & 1;
+				var isOn = (dacState >> (15 - bitPos)) & 1;
 				~grid.led(x + 1, y, isOn * GridInterface.ledFull);
 			}};
+
+			// Utilities (cols 5-7) - dim static indicators
+			4.do { |row|
+				~grid.led(5, row, GridInterface.ledDim);  // Clear
+				~grid.led(6, row, GridInterface.ledDim);  // Invert
+				~grid.led(7, row, GridInterface.ledDim);  // Shift
+			};
+
+			// Slew grid (cols 8-11)
+			4.do { |col|
+				var bitPos = 3 - col;
+				// Row 0: Time
+				~grid.led(col + 8, 0, ((~slewTimeBits >> bitPos) & 1) * GridInterface.ledFull);
+				// Row 1: Curve
+				~grid.led(col + 8, 1, ((~slewCurveBits >> bitPos) & 1) * GridInterface.ledFull);
+				// Row 2-3: dim (deferred)
+				~grid.led(col + 8, 2, GridInterface.ledDim);
+				~grid.led(col + 8, 3, GridInterface.ledDim);
+			};
 
 			// Page indicator
 			~grid.led(0, 0, if(~currentPage == 0) { GridInterface.ledFull } { GridInterface.ledDim });
@@ -545,7 +654,8 @@ s.waitForBoot({
 	"[Griddlecake]   ~testFx.()                     - Test FX states".postln;
 	"[Griddlecake]   ~randomize.()                  - Randomize both".postln;
 	"[Griddlecake]   ~showSeed.()                   - Show LUT seed".postln;
-	"[Griddlecake]   ~setSlew.(time)                - Set param slew time".postln;
+	"[Griddlecake]   ~setSlew.(time, curve)         - Set slew time/curve".postln;
+	"[Griddlecake]   ~setCurve.(curve)              - Set slew curve (-8 to 8)".postln;
 	"[Griddlecake]   ~eq.(low, mid, high)           - Set EQ gains (dB)".postln;
 	"[Griddlecake]   ~eqFreqs.(low, mid, high)      - Set EQ freqs (Hz)".postln;
 	"[Griddlecake]   ~eqMidQ.(q)                    - Set mid Q".postln;

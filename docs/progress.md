@@ -11,23 +11,58 @@ See [Implementation](implementation.md) for the high-level roadmap.
 **Phase:** Phase 2 - Grid Integration (in progress)
 
 **Completed:**
-- drone.scd SynthDef (39 LUT params + EQ/comp + per-param slew)
+- drone.scd SynthDef (39 LUT params + EQ/comp + VarLag slew with curve)
 - Split LUT: Voice (20 params) + FX (19 params)
 - main.scd boot file with full state management
 - EQ and compressor (SClang control only)
-- Per-param Lag.kr for smooth morphing
+- VarLag.kr for smooth morphing with curve shaping
 - True parameter value interpolation (not index traversal)
 - True 8-bit audio-rate bitwise ops (AND, OR, XOR, GLITCH)
 - Weighted frequency distribution in LUT (bias toward low frequencies)
+- Separate voice/FX DAC states with independent LED display
+- Slew grid: time (row 0) + curve (row 1) with 4-bit toggles
+- Utilities: clear/invert/shift row operations on param grid
 
 **Next Steps:**
-1. Test oscgrid connection (iPad + TouchOSC)
-2. Verify param grid → DAC → LUT works
-3. Implement remaining zones (slew, utilities, gestures, sequencer)
+1. Implement gesture slots (cols 12-15)
+2. Implement sequencer (rows 4-7)
+3. Implement tap tempo and transport (col 0, rows 2-3)
 
 ---
 
 ## Session Log
+
+### 2025-12-29 (Session 3)
+
+**Slew Grid Implementation:**
+- Updated SynthDef: `Lag.kr` → `VarLag.kr(in, time, curve)`
+- Added `slew_curve` parameter (-8 to +8)
+- Slew grid moved to cols 8-11
+- Row 0: time (4-bit, 10ms-10s exponential)
+- Row 1: curve (4-bit, -8 to +8 linear)
+- Rows 2-3: dim (deferred)
+
+**Utilities Implementation:**
+- Utilities placed between param grid and slew (cols 5-7)
+- Col 5: Clear row (zeros 4 bits)
+- Col 6: Invert row (XOR with 0xF)
+- Col 7: Shift right (rotate within 4 bits)
+- Flash medium brightness on touch
+
+**Bug Fixes:**
+- Fixed separate voice/FX DAC state tracking
+- Fixed duplicate OSC handler issue (auto-disconnect on reconnect)
+- Fixed zone detection bounds in GridInterface
+
+**Layout Update:**
+```
+Col: 0  1-4  5-7    8-11   12-15
+     N  [P]  [-i>]  [L]    [G]
+
+N=Nav, P=Param, -i>=Utils, L=Slew, G=Gestures
+```
+
+---
 
 ### 2025-12-28 (Session 2)
 

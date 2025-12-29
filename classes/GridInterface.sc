@@ -110,9 +110,9 @@ GridInterface {
 	getZone { |x, y|
 		^case
 		{ x == 0 } { \navigation }
-		{ (x <= 4) && (y <= 3) } { \paramGrid }
-		{ (x <= 8) && (y <= 3) } { \slewGrid }
-		{ (x <= 11) && (y <= 3) } { \utilities }
+		{ (x >= 1) && (x <= 4) && (y <= 3) } { \paramGrid }
+		{ (x >= 5) && (x <= 7) && (y <= 3) } { \utilities }
+		{ (x >= 8) && (x <= 11) && (y <= 3) } { \slewGrid }
 		{ (x >= 12) && (y <= 3) } { \gestures }
 		{ y >= 4 } { \sequencer }
 		{ \unknown };
