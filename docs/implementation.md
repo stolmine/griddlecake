@@ -34,9 +34,9 @@ Build phases, priorities, and getting started guide.
 
 | # | Task | Status |
 |---|------|--------|
-| 15 | Gesture recording/playback (state sequences) | ⏳ |
-| 16 | Action resolution (clear/invert/shift → states) | ⏳ |
-| 17 | 16 gesture slots with visual feedback | ⏳ |
+| 15 | Gesture recording/playback (state sequences) | ✅ |
+| 16 | Action resolution (clear/invert/shift → states) | ✅ |
+| 17 | 16 gesture slots with visual feedback | ✅ |
 
 ### Phase 4: Sequencer
 

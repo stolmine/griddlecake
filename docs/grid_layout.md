@@ -117,11 +117,22 @@ Uses VarLag for smooth parameter transitions with curve shaping.
 
 | State | Action | Result |
 |-------|--------|--------|
-| Empty slot | First press | Start recording (slot blinks) |
-| Recording | Second press | Stop recording, auto-playback |
-| Playing | Press | Overdub mode (add to gesture) |
-| Playing | Double-tap | Stop playback |
-| Any | Hold >500ms | Delete gesture |
+| Empty | Tap | Start recording |
+| Recording | Tap | Stop recording, auto-play |
+| Stopped | Tap | Play gesture (loops) |
+| Paused | Tap | Resume playback |
+| Playing | Double-tap | Pause playback |
+| Any | Hold >500ms | Clear gesture |
+
+**LED Feedback:**
+
+| State | Brightness |
+|-------|------------|
+| Empty | Off (0) |
+| Recording | Full (15) |
+| Stopped | Medium (8) |
+| Paused | Bright (12) |
+| Playing | Breathing (8↔15) |
 
 **Gesture Data Structure:**
 ```supercollider

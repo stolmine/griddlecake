@@ -22,15 +22,49 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Separate voice/FX DAC states with independent LED display
 - Slew grid: time (row 0) + curve (row 1) with 4-bit toggles
 - Utilities: clear/invert/shift row operations on param grid
+- GestureRecorder.sc class (16 slots, state machine, timestamped capture)
+- Gesture zone handler with hold/double-tap detection in GridInterface
+- Gesture recording wired to param/utility state changes
+- Gesture playback with timing restoration
+- LED feedback for gesture slots
 
 **Next Steps:**
-1. Implement gesture slots (cols 12-15)
-2. Implement sequencer (rows 4-7)
-3. Implement tap tempo and transport (col 0, rows 2-3)
+1. Implement sequencer (rows 4-7)
+2. Implement tap tempo and transport (col 0, rows 2-3)
 
 ---
 
 ## Session Log
+
+### 2025-12-29 (Session 4)
+
+**Gesture Slots Implementation:**
+- Created `GestureRecorder.sc` class (148 lines)
+  - 16 slots with state machine: \empty, \recording, \stopped, \playing
+  - Timestamped step capture with voiceState + fxState
+  - Playback via Routine with delta timing
+- Updated `GridInterface.sc` with hold/double-tap detection
+  - Hold >500ms: triggers onHold callback
+  - Double-tap <300ms: triggers onDoubleTap callback
+  - Uses AppClock.sched and Main.elapsedTime
+- Integrated gestures into `main.scd`
+  - State machine: empty→record, record→stop+play, stopped→play
+  - Hold gesture slot = clear gesture
+  - Double-tap during playback = stop
+  - Recording captures param grid + utility actions
+  - LED feedback: off=empty, full=recording, medium=stopped, bright=paused, breathing=playing
+
+**Gesture Playback Enhancements:**
+- Gestures now loop continuously until paused or cleared
+- Added `\paused` state - double-tap pauses, single-tap resumes
+- LED breathing effect for playing gestures (sine wave, ~2s cycle)
+- Fixed double-tap detection (check on press, not release)
+- Fixed SC `&&` short-circuit issue in handleKeyEvent
+
+**Layout Update:**
+Gesture slots fully functional in cols 12-15, rows 0-3.
+
+---
 
 ### 2025-12-29 (Session 3)
 
@@ -196,6 +230,11 @@ N=Nav, P=Param, -i>=Utils, L=Slew, G=Gestures
 | 2025-12-28 | EQ/Comp outside LUT | Master bus control, not part of chaotic exploration |
 | 2025-12-28 | Inlined bitwise ops | Avoids class dependency, self-contained SynthDef |
 | 2025-12-28 | Weighted freq distribution | More musical random states, favors bass |
+| 2025-12-29 | Record states not operations | Enables arithmetic averaging for blending |
+| 2025-12-29 | Auto-play after recording | Immediate feedback, natural workflow |
+| 2025-12-29 | Hold to clear, double-tap to stop | Discoverable gestures without mode keys |
+| 2025-12-29 | Gestures loop continuously | More useful for performance, pause to stop |
+| 2025-12-29 | Breathing LEDs for playing | Clear visual distinction between states |
 
 ---
 

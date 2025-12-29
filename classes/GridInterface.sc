@@ -13,6 +13,10 @@ GridInterface {
 	var <isOscgrid;
 	var <prefix;
 	var oscHandler;
+	var <holdTimers;
+	var <lastTapTime;
+	var <onHold;
+	var <onDoubleTap;
 
 	*new { |targetIP, targetPort, oscgrid=true, prefix="/monome"|
 		^super.new.init(targetIP, targetPort, oscgrid, prefix);
@@ -25,6 +29,8 @@ GridInterface {
 		dirty = false;
 
 		ledBuffer = 16.collect { 8.collect { 0 } };
+		holdTimers = Dictionary.new;
+		lastTapTime = Dictionary.new;
 
 		this.startRefresh;
 		this.registerOSC;
@@ -95,9 +101,13 @@ GridInterface {
 				var x = parts[1].asInteger;
 				var y = parts[2].asInteger;
 				var state = msg[1];
+				var consumed;
 				// oscgrid is 1-indexed, convert to 0-indexed
 				if (isOscgrid) { x = x - 1; y = y - 1 };
-				keyAction.value(x, y, state);
+				consumed = this.handleKeyEvent(x, y, state);
+				if (consumed.not) {
+					keyAction.value(x, y, state);
+				};
 			};
 		};
 		thisProcess.addOSCRecvFunc(oscHandler);
@@ -105,6 +115,47 @@ GridInterface {
 
 	key { |func|
 		keyAction = func;
+	}
+
+	handleKeyEvent { |x, y, state|
+		var coordKey = (x.asString ++ "_" ++ y.asString).asSymbol;
+		var currentTime, lastTime;
+
+		currentTime = Main.elapsedTime;
+
+		if (state == 1) {
+			// Key pressed - check for double-tap
+			lastTime = lastTapTime[coordKey];
+			if (lastTime.notNil) {
+				if ((currentTime - lastTime) < 0.4) {
+					onDoubleTap.value(x, y);
+					lastTapTime[coordKey] = nil;
+					^true;  // Consumed - don't fire keyAction
+				};
+			};
+			// Start hold timer
+			holdTimers[coordKey] = AppClock.sched(0.5, {
+				onHold.value(x, y);
+				holdTimers[coordKey] = nil;
+			});
+			^false;  // Not consumed - fire keyAction
+		} {
+			// Key released - cancel hold timer, record tap time
+			if (holdTimers[coordKey].notNil) {
+				AppClock.clear(holdTimers[coordKey]);
+				holdTimers[coordKey] = nil;
+			};
+			lastTapTime[coordKey] = currentTime;
+			^false;  // Release events never consumed
+		};
+	}
+
+	hold { |func|
+		onHold = func;
+	}
+
+	doubleTap { |func|
+		onDoubleTap = func;
 	}
 
 	getZone { |x, y|

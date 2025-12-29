@@ -201,11 +201,18 @@ s.waitForBoot({
 	s.sync;
 
 	// ========================================
+	// GESTURE RECORDER
+	// ========================================
+
+	~gestures = GestureRecorder.new;
+
+	// ========================================
 	// INITIALIZE STATE
 	// ========================================
 
 	~voiceIndex = 0;
 	~fxIndex = 0;
+	~recordingSlot = nil;
 
 	// ========================================
 	// HELPER FUNCTIONS
@@ -390,6 +397,17 @@ s.waitForBoot({
 		~applySlew.();
 	};
 
+	// Play gesture with callback
+	~playGesture = { |slot|
+		~gestures.play(slot, { |voiceState, fxState|
+			~voiceDacState = voiceState;
+			~fxDacState = fxState;
+			~applyVoiceState.(voiceState);
+			~applyFxState.(fxState);
+			~updateGridLEDs.();
+		});
+	};
+
 	// ========================================
 	// EQ & COMPRESSOR (SClang control only)
 	// ========================================
@@ -471,6 +489,10 @@ s.waitForBoot({
 	// Connect to grid
 	~connectGrid = {
 		// Disconnect existing grid first to prevent duplicate handlers
+		if (~gestureBreathTask.notNil) {
+			~gestureBreathTask.stop;
+			~gestureBreathTask = nil;
+		};
 		if (~grid.notNil) {
 			"[Griddlecake] Disconnecting existing grid...".postln;
 			~grid.free;
@@ -506,6 +528,12 @@ s.waitForBoot({
 							~applyFxState.(~fxDacState);
 							"[Grid] FX DAC: % (bit % toggled)".format(~fxDacState, 15 - bitPos).postln;
 						};
+
+						// Record step if recording
+						if (~recordingSlot.notNil) {
+							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState);
+						};
+
 						~updateGridLEDs.();
 					},
 					\slewGrid, {
@@ -565,12 +593,47 @@ s.waitForBoot({
 							~applyFxState.(~fxDacState);
 						};
 
+						// Record step if recording
+						if (~recordingSlot.notNil) {
+							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState);
+						};
+
 						~updateGridLEDs.();
 					},
 					\gestures, {
 						// Cols 12-15, rows 0-3: gesture slots
 						var slot = ((y * 4) + (x - 12));
-						"[Grid] Gesture slot: %".format(slot).postln;
+						var state = ~gestures.getState(slot);
+
+						// State machine
+						switch(state,
+							\empty, {
+								~gestures.startRecording(slot);
+								~recordingSlot = slot;
+								"[Grid] Recording gesture %".format(slot).postln;
+							},
+							\recording, {
+								~gestures.stopRecording(slot);
+								~recordingSlot = nil;
+								"[Grid] Stopped recording gesture %".format(slot).postln;
+								// Auto-play after recording
+								~playGesture.(slot);
+								"[Grid] Playing gesture %".format(slot).postln;
+							},
+							\stopped, {
+								~playGesture.(slot);
+								"[Grid] Playing gesture %".format(slot).postln;
+							},
+							\paused, {
+								~playGesture.(slot);
+								"[Grid] Resumed gesture %".format(slot).postln;
+							},
+							\playing, {
+								// Ignore single tap while playing
+							}
+						);
+
+						~updateGridLEDs.();
 					},
 					\sequencer, {
 						// Rows 4-7: sequencer
@@ -579,6 +642,26 @@ s.waitForBoot({
 						"[Grid] Seq step: %, row: %".format(step, row).postln;
 					}
 				);
+			};
+		});
+
+		// Set up hold callback for clearing gestures
+		~grid.hold({ |x, y|
+			if (~grid.getZone(x, y) == \gestures) {
+				var slot = ((y * 4) + (x - 12));
+				~gestures.clear(slot);
+				"[Grid] Gesture % cleared".format(slot).postln;
+				~updateGridLEDs.();
+			};
+		});
+
+		// Set up doubleTap callback for pausing gestures
+		~grid.doubleTap({ |x, y|
+			if (~grid.getZone(x, y) == \gestures) {
+				var slot = ((y * 4) + (x - 12));
+				~gestures.pause(slot);
+				"[Grid] Gesture % paused".format(slot).postln;
+				~updateGridLEDs.();
 			};
 		});
 
@@ -612,10 +695,49 @@ s.waitForBoot({
 				~grid.led(col + 8, 3, GridInterface.ledDim);
 			};
 
+			// Gesture slots (cols 12-15, rows 0-3)
+			// Playing slots handled by breath task
+			4.do { |row|
+				4.do { |col|
+					var slot = (row * 4) + col;
+					var state = ~gestures.getState(slot);
+					if (state != \playing) {
+						var brightness = switch(state,
+							\empty, { GridInterface.ledOff },
+							\recording, { GridInterface.ledFull },
+							\stopped, { GridInterface.ledMedium },
+							\paused, { GridInterface.ledBright },
+							{ GridInterface.ledDim }
+						);
+						~grid.led(col + 12, row, brightness);
+					};
+				};
+			};
+
 			// Page indicator
 			~grid.led(0, 0, if(~currentPage == 0) { GridInterface.ledFull } { GridInterface.ledDim });
 			~grid.led(0, 1, if(~currentPage == 1) { GridInterface.ledFull } { GridInterface.ledDim });
 		};
+
+		// Gesture LED breathing task
+		~gestureBreathTask = Routine({
+			var phase = 0;
+			loop {
+				4.do { |row|
+					4.do { |col|
+						var slot = (row * 4) + col;
+						if (~gestures.getState(slot) == \playing) {
+							// Breathe between ledMedium (8) and ledFull (15)
+							var breath = (phase.sin + 1) / 2;  // 0-1
+							var brightness = (GridInterface.ledMedium + (breath * 7)).asInteger;
+							~grid.led(col + 12, row, brightness);
+						};
+					};
+				};
+				phase = phase + 0.15;  // ~2 second cycle at 30fps
+				0.033.wait;
+			};
+		}).play;
 
 		// Initial LED state
 		~updateGridLEDs.();
@@ -625,6 +747,10 @@ s.waitForBoot({
 
 	// Disconnect grid
 	~disconnectGrid = {
+		if (~gestureBreathTask.notNil) {
+			~gestureBreathTask.stop;
+			~gestureBreathTask = nil;
+		};
 		if (~grid.notNil) {
 			~grid.free;
 			~grid = nil;
