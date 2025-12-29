@@ -8,6 +8,7 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 
 | Document | Description |
 |----------|-------------|
+| [Progress](progress.md) | **Session log, decisions, current status** |
 | [Overview](overview.md) | Project summary, key decisions, hardware requirements |
 | [Core Concepts](core_concepts.md) | LUT, 16-bit DAC paradigm, slew system |
 | [Grid Layout](grid_layout.md) | Physical layout, control zones, interaction model |
@@ -65,8 +66,8 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 | Comb Res | 3 | freq, decay, mix |
 | Delay | 3 | time, fb, mix |
 | MiClouds | 7 | pos, size, dens, tex, mode, rvb, mix |
-| Output | 1 | level |
-| **Total** | **39** | |
+| Output | 1 | level (user-controlled, not in LUT) |
+| **Total** | **39** | (38 in LUT + 1 user volume) |
 
 ---
 

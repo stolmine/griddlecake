@@ -10,10 +10,10 @@ Build phases, priorities, and getting started guide.
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | LUT generation with seeded randomness (39 params) | ⏳ |
+| 1 | LUT generation with seeded randomness (39 params) | ✅ |
 | 2 | Parameter grid → DAC state → LUT lookup | ⏳ |
-| 3 | Drone synth voice (2 osc + combo modes + filter) | ⏳ |
-| 4 | Slew on index integer | ⏳ |
+| 3 | Drone synth voice (2 osc + combo modes + filter) | ✅ |
+| 4 | Slew on index integer | ✅ |
 | 5 | Grid/oscgrid OSC communication | ⏳ |
 
 ### Phase 2: Voice Complete

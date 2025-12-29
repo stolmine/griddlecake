@@ -134,8 +134,18 @@ sig = SVF.ar(sig, cutoff.clip(20, 20000), filterRes,
 
 | Param | Notes |
 |-------|-------|
-| `output_level` | Master output (0-1) |
+| `output_level` | Master volume (0-1), **user-controlled, NOT in LUT** |
 | **Limiter** | `Limiter.ar(sig, 1.0, 0.01)` - always on, not controllable |
+
+### Volume Control
+
+Volume is intentionally excluded from the LUT to give users consistent control:
+
+- **Access:** Hold tap button (`;`) + press param grid button (1-16 levels)
+- **Behavior:** Persists across LUT state changes
+- **Rationale:** Chaotic LUT would cause unpredictable volume jumps
+
+See [Grid Layout](grid_layout.md) for button mapping.
 
 ---
 

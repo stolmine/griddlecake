@@ -40,6 +40,22 @@ Legend:
 | **;** | (0,2) | Tap tempo |
 | **:** | (0,3) | Transport start/stop |
 
+#### Modifier: Hold Tap (`;`) + Param Grid = Volume
+
+Hold the tap button and press any of the 16 param grid buttons to set master volume.
+
+```
+Volume levels (1-16, bottom-left to top-right):
+[13][14][15][16]  Row 0 (loudest)
+[ 9][10][11][12]  Row 1
+[ 5][ 6][ 7][ 8]  Row 2
+[ 1][ 2][ 3][ 4]  Row 3 (quietest)
+```
+
+- Volume is **NOT stored in LUT** - always user-controlled
+- Persists across LUT state changes
+- Saved/loaded with project state
+
 ---
 
 ### Parameter Grid (Cols 1-4, Rows 0-3)
