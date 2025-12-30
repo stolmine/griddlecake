@@ -124,15 +124,19 @@ GridInterface {
 		currentTime = Main.elapsedTime;
 
 		if (state == 1) {
-			// Key pressed - check for double-tap
+			// Key pressed - record press time for double-tap detection
 			lastTime = lastTapTime[coordKey];
+			lastTapTime[coordKey] = currentTime;  // Record on PRESS, not release
+
+			// Check for double-tap (0.25s threshold = 240 BPM safe)
 			if (lastTime.notNil) {
-				if ((currentTime - lastTime) < 0.4) {
+				if ((currentTime - lastTime) < 0.25) {
 					onDoubleTap.value(x, y);
-					lastTapTime[coordKey] = nil;
+					lastTapTime[coordKey] = nil;  // Reset to prevent triple-tap
 					^true;  // Consumed - don't fire keyAction
 				};
 			};
+
 			// Start hold timer
 			holdTimers[coordKey] = AppClock.sched(0.5, {
 				onHold.value(x, y);
@@ -140,12 +144,11 @@ GridInterface {
 			});
 			^false;  // Not consumed - fire keyAction
 		} {
-			// Key released - cancel hold timer, record tap time
+			// Key released - cancel hold timer
 			if (holdTimers[coordKey].notNil) {
 				AppClock.clear(holdTimers[coordKey]);
 				holdTimers[coordKey] = nil;
 			};
-			lastTapTime[coordKey] = currentTime;
 			^false;  // Release events never consumed
 		};
 	}
@@ -160,12 +163,12 @@ GridInterface {
 
 	getZone { |x, y|
 		^case
+		{ y >= 4 } { \sequencer }  // Check sequencer FIRST (all 16 cols, rows 4-7)
 		{ x == 0 } { \navigation }
 		{ (x >= 1) && (x <= 4) && (y <= 3) } { \paramGrid }
 		{ (x >= 5) && (x <= 7) && (y <= 3) } { \utilities }
 		{ (x >= 8) && (x <= 11) && (y <= 3) } { \slewGrid }
 		{ (x >= 12) && (y <= 3) } { \gestures }
-		{ y >= 4 } { \sequencer }
 		{ \unknown };
 	}
 

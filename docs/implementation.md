@@ -42,11 +42,11 @@ Build phases, priorities, and getting started guide.
 
 | # | Task | Status |
 |---|------|--------|
-| 18 | 4-row × 16-step sequencer | ⏳ |
-| 19 | Per-row loop length | ⏳ |
-| 20 | Gesture triggering and blending (MEAN) | ⏳ |
-| 21 | Clock → MiClouds trigger routing | ⏳ |
-| 22 | Live intervention during playback | ⏳ |
+| 18 | 4-row × 16-step sequencer | ✅ |
+| 19 | Per-row loop length | ✅ |
+| 20 | Gesture triggering and blending (MEAN) | ✅ |
+| 21 | Clock → MiClouds trigger routing | ✅ |
+| 22 | Live intervention during playback | ✅ |
 
 ### Phase 5: Polish
 

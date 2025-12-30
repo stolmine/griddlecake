@@ -8,7 +8,7 @@ See [Implementation](implementation.md) for the high-level roadmap.
 
 ## Current Status
 
-**Phase:** Phase 2 - Grid Integration (in progress)
+**Phase:** Phase 5 - Polish (in progress)
 
 **Completed:**
 - drone.scd SynthDef (39 LUT params + EQ/comp + VarLag slew with curve)
@@ -27,14 +27,85 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Gesture recording wired to param/utility state changes
 - Gesture playback with timing restoration
 - LED feedback for gesture slots
+- Sequencer.sc class (4 rows × 16 steps, per-step gesture slots, blending)
+- Clock & Transport (TempoClock, tap tempo, start/stop controls)
+- Sequencer grid handler (rows 4-7) with gesture assignment and loop control
+- Clock-driven gesture playback with blended voice/FX states
+- Preset/Gesture separation with tagged types
+- Per-step gesture slot assignment with visual LED feedback
+- Parameter blending via arithmetic mean across active sequencer rows
 
 **Next Steps:**
-1. Implement sequencer (rows 4-7)
-2. Implement tap tempo and transport (col 0, rows 2-3)
+1. Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
 
 ---
 
 ## Session Log
+
+### 2025-12-29 (Session 6)
+
+**Sequencer Implementation (Phase 4 Complete):**
+- Created `Sequencer.sc` class (140 lines)
+  - 4 rows × 16 steps with per-row loop lengths
+  - Per-step gesture/preset slot assignment
+  - Parameter blending: arithmetic mean of actual param values across active rows
+  - Stores full param arrays per row (not LUT indices)
+- Clock & Transport
+  - TempoClock at 120 BPM default
+  - Tap tempo with 3s timeout, 20-300 BPM range
+  - Transport start/stop (col 0, row 3)
+  - Hold transport = stop + reset to step 0
+- Sequencer grid handler (rows 4-7)
+  - Hold step + tap gesture = assign gesture/preset
+  - Hold step + tap tempo = set loop length
+  - Double-tap step = clear assignment
+  - LED: bright=current, medium=has gesture, dim=empty, off=beyond loop
+
+**Preset/Gesture Separation:**
+- Tagged types in GestureRecorder: `(type: \preset)` vs `(type: \gesture, steps: [...])`
+- Hold page button (synth/FX) + tap slot = save current state as preset
+- Presets apply instantly (no loop), gestures play timed sequence
+- Presets flash on trigger (manual or sequencer)
+
+**Bug Fixes:**
+- Zone detection: sequencer (y>=4) now checked before navigation (x==0), fixing step 0
+- Tap tempo: reduced double-tap threshold to 0.25s, record on press not release
+- Gesture clearing no longer crashes sequencer (deep copy steps at trigger time)
+- Clock routine always applies blended params each tick
+
+**Known Issues:**
+- Preset mutual exclusion (manual tap) not fully working - cosmetic only
+
+---
+
+### 2025-12-29 (Session 5)
+
+**Sequencer Implementation:**
+- Created `Sequencer.sc` class (140 lines)
+  - 4 rows × 16 steps with per-row loop lengths (1-16)
+  - Per-step gesture slot assignment (0-15 or nil)
+  - State tracking: rowStates, currentStep, loopLengths, stepGestures, rowIsActive
+  - Blending: arithmetic mean of active row states (voice + FX calculated separately)
+
+**Clock & Transport:**
+- TempoClock at 120 BPM default
+- Tap tempo (col 0, row 2): averages last 4 taps, 20-300 BPM range
+- Transport start/stop (col 0, row 3): toggles sequencer running state
+- Clock triggers MiClouds (`t_clock`) on each beat
+
+**Sequencer Grid Handler (rows 4-7):**
+- Tap step: cycles gesture assignment (nil→0→1→...→15→nil)
+- Hold step: sets loop length for that row (1-16, bright LED extends from current step)
+- LED feedback: bright=current step, medium=has gesture assignment, dim=empty step, off=beyond loop length
+- Press/release gesture playback coordinated with step timing
+
+**Integration:**
+- Clock routine advances all rows, triggers queued gestures, calculates blended voice/FX states
+- Blend applied directly to synth voice/FX DAC states each beat
+- Proper cleanup on disconnect (stopClock, free gestures, clear timers)
+- Sequencer and transport controls update main LED feedback in real-time
+
+---
 
 ### 2025-12-29 (Session 4)
 
@@ -240,7 +311,7 @@ N=Nav, P=Param, -i>=Utils, L=Slew, G=Gestures
 
 ## Known Issues
 
-_None currently._
+- Preset mutual exclusion (manual tap) not fully working - cosmetic only (preset flash timing may overlap)
 
 ---
 

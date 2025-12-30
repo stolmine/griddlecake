@@ -207,12 +207,212 @@ s.waitForBoot({
 	~gestures = GestureRecorder.new;
 
 	// ========================================
+	// SEQUENCER & CLOCK
+	// ========================================
+
+	~sequencer = Sequencer.new;
+	~transport = \stopped;
+	~bpm = 120;
+	~clock = TempoClock(~bpm / 60);
+	~tapTimes = [];
+
+	// Tap tempo calculation
+	~tapTimeout = 3.0;  // Reset if gap > 3s (allows ~20 BPM minimum)
+	~tapTempo = {
+		var now = Main.elapsedTime;
+		var interval, intervals, avgInterval;
+
+		// Reset if too long since last tap
+		if (~tapTimes.size > 0) {
+			interval = now - ~tapTimes.last;
+			if (interval > ~tapTimeout) {
+				~tapTimes = [];
+				"[Clock] Tap tempo reset (timeout)".postln;
+			};
+		};
+
+		~tapTimes = ~tapTimes.add(now);
+
+		// Keep only last 4 taps
+		if (~tapTimes.size > 4) { ~tapTimes = ~tapTimes.keep(-4) };
+
+		if (~tapTimes.size >= 2) {
+			// Calculate intervals between consecutive taps
+			intervals = [];
+			(~tapTimes.size - 1).do { |i|
+				intervals = intervals.add(~tapTimes[i + 1] - ~tapTimes[i]);
+			};
+
+			avgInterval = intervals.sum / intervals.size;
+			~bpm = (60 / avgInterval).clip(20, 300);
+			~clock.tempo = ~bpm / 60;
+			"[Clock] Tap tempo: % BPM (interval: %s)".format(
+				~bpm.round(0.1),
+				avgInterval.round(0.001)
+			).postln;
+		} {
+			"[Clock] Tap % - need 1 more".format(~tapTimes.size).postln;
+		};
+	};
+
+	// Start transport
+	~startTransport = {
+		if (~transport == \stopped) {
+			~transport = \running;
+			~clockRoutine = Routine({
+				loop {
+					if (~transport == \running) {
+						// Process all sequencer rows
+						4.do { |row|
+							var step = ~sequencer.getStepForRow(row);
+							var gestureSlot = ~sequencer.getGesture(row, step);
+
+							// If step has gesture, trigger it (updates row params)
+							if (gestureSlot.notNil) {
+								~triggerGestureOnRow.(row, gestureSlot);
+							};
+
+							~sequencer.advanceStep(row);
+						};
+
+						// Always apply blended params (even if no gesture triggered)
+						~applyBlendedParams.();
+
+						// Trigger MiClouds on clock
+						~drone.set(\t_clock, 1);
+
+						// Update LEDs
+						~updateGridLEDs.();
+					};
+					~clock.beatDur.wait;
+				};
+			}).play;
+			"[Clock] Transport started".postln;
+		};
+	};
+
+	// Stop transport
+	~stopTransport = {
+		if (~transport == \running) {
+			~transport = \stopped;
+			if (~clockRoutine.notNil) {
+				~clockRoutine.stop;
+				~clockRoutine = nil;
+			};
+			// Stop all row playback routines
+			4.do { |row|
+				if (~rowPlaybackRoutines[row].notNil) {
+					~rowPlaybackRoutines[row].stop;
+					~rowPlaybackRoutines[row] = nil;
+				};
+			};
+			"[Clock] Transport stopped".postln;
+		};
+	};
+
+	// Toggle transport
+	~toggleTransport = {
+		if (~transport == \stopped) {
+			~startTransport.();
+		} {
+			~stopTransport.();
+		};
+	};
+
+	// Apply blended params from sequencer (actual param values, not indices)
+	~applyBlendedParams = {
+		var blend = ~sequencer.calculateBlendedParams;
+		var voiceParams = blend[0];
+		var fxParams = blend[1];
+
+		// Apply voice params directly
+		~voiceParamNames.do { |name, i|
+			~drone.set(name, voiceParams[i]);
+		};
+
+		// Apply FX params directly
+		~fxParamNames.do { |name, i|
+			~drone.set(name, fxParams[i]);
+		};
+	};
+
+	// Per-row gesture playback routines (for interrupt behavior)
+	~rowPlaybackRoutines = Array.newClear(4);
+
+	// Trigger gesture/preset on a row (interrupts any existing playback)
+	~triggerGestureOnRow = { |row, gestureSlot|
+		var gesture, stepsCopy, preset, voiceParams, fxParams;
+
+		// Stop existing playback on this row
+		if (~rowPlaybackRoutines[row].notNil) {
+			~rowPlaybackRoutines[row].stop;
+			~rowPlaybackRoutines[row] = nil;
+		};
+
+		if (~gestures.hasGesture(gestureSlot)) {
+			if (~gestures.isPreset(gestureSlot)) {
+				// Handle preset: apply immediately, no routine needed
+				preset = ~gestures.getPreset(gestureSlot);
+				if (preset.notNil) {
+					voiceParams = ~voiceLut[preset[0].clip(0, 65535)];
+					fxParams = ~fxLut[preset[1].clip(0, 65535)];
+					~sequencer.setRowParams(row, voiceParams, fxParams);
+					~applyBlendedParams.();
+					// Update DAC state for LED display
+					~voiceDacState = preset[0];
+					~fxDacState = preset[1];
+					// Flash preset slot
+					~flashGestureSlot.(gestureSlot);
+				};
+			} {
+				// Handle gesture: play full sequence
+				gesture = ~gestures.gestures[gestureSlot];
+				if (gesture.notNil && gesture[\steps].notNil && (gesture[\steps].size > 0)) {
+					// Deep copy steps at trigger time (immune to later clearing)
+					stepsCopy = gesture[\steps].collect { |step|
+						(time: step[\time], voiceState: step[\voiceState], fxState: step[\fxState])
+					};
+
+					// Start playback routine for this row
+					~rowPlaybackRoutines[row] = Routine({
+						var prevTime = 0;
+
+						stepsCopy.do { |step|
+							var waitTime = (step[\time] - prevTime) / 1000.0;
+							var vParams = ~voiceLut[step[\voiceState].clip(0, 65535)];
+							var fParams = ~fxLut[step[\fxState].clip(0, 65535)];
+
+							if (waitTime > 0) { waitTime.wait };
+
+							// Update row's params
+							~sequencer.setRowParams(row, vParams, fParams);
+
+							// Recalculate and apply blend
+							~applyBlendedParams.();
+
+							prevTime = step[\time];
+						};
+
+						// Gesture complete - row latches at final state
+						~rowPlaybackRoutines[row] = nil;
+					}).play;
+				};
+			};
+		};
+	};
+
+	// ========================================
 	// INITIALIZE STATE
 	// ========================================
 
 	~voiceIndex = 0;
 	~fxIndex = 0;
 	~recordingSlot = nil;
+
+	// Initialize all sequencer rows with LUT[0] default params
+	4.do { |row|
+		~sequencer.setRowParams(row, ~voiceLut[0], ~fxLut[0]);
+	};
 
 	// ========================================
 	// HELPER FUNCTIONS
@@ -397,15 +597,54 @@ s.waitForBoot({
 		~applySlew.();
 	};
 
-	// Play gesture with callback
+	// Track flashing slots (so updateGridLEDs doesn't overwrite)
+	~flashingSlots = Set.new;
+
+	// Track active preset for mutual exclusion (manual taps only)
+	~activePreset = nil;
+
+	// Flash a gesture slot LED (for preset feedback)
+	~flashGestureSlot = { |slot|
+		var col = slot % 4;
+		var row = (slot / 4).floor.asInteger;
+		if (~grid.notNil) {
+			~flashingSlots.add(slot);
+			~grid.led(col + 12, row, GridInterface.ledFull);
+			AppClock.sched(0.15, {
+				~flashingSlots.remove(slot);
+				~updateGridLEDs.();
+				nil;
+			});
+		};
+	};
+
+	// Play gesture or apply preset (manual tap version)
 	~playGesture = { |slot|
-		~gestures.play(slot, { |voiceState, fxState|
-			~voiceDacState = voiceState;
-			~fxDacState = fxState;
-			~applyVoiceState.(voiceState);
-			~applyFxState.(fxState);
+		if (~gestures.isPreset(slot)) {
+			// Preset: apply instantly, no loop
+			var preset = ~gestures.getPreset(slot);
+			if (preset.notNil) {
+				~voiceDacState = preset[0];
+				~fxDacState = preset[1];
+				~applyVoiceState.(~voiceDacState);
+				~applyFxState.(~fxDacState);
+				~activePreset = slot;  // Mutual exclusion: only this preset active
+				~updateGridLEDs.();  // Update LEDs to dim other presets
+				~flashGestureSlot.(slot);  // Flash feedback (overrides for this slot)
+				"[Grid] Applied preset % (activePreset now %)".format(slot, ~activePreset).postln;
+			};
+		} {
+			// Gesture: play with looping (clears active preset)
+			~activePreset = nil;
 			~updateGridLEDs.();
-		});
+			~gestures.play(slot, { |voiceState, fxState|
+				~voiceDacState = voiceState;
+				~fxDacState = fxState;
+				~applyVoiceState.(voiceState);
+				~applyFxState.(fxState);
+				~updateGridLEDs.();
+			});
+		};
 	};
 
 	// ========================================
@@ -469,6 +708,12 @@ s.waitForBoot({
 	~voiceDacState = 0;
 	~fxDacState = 0;
 
+	// Modifier state: track pressed sequencer step for hold+tap gestures
+	~pressedSeqStep = nil;  // [row, step] or nil
+
+	// Modifier state: track pressed page button for preset saving
+	~pressedPageButton = nil;  // 0 = synth, 1 = FX, nil = none
+
 	// Slew grid state (4-bit each, 0-15)
 	~slewTimeBits = 0;    // Row 0: time (10ms-10s)
 	~slewCurveBits = 0;   // Row 1: curve (-8 to +8)
@@ -509,9 +754,29 @@ s.waitForBoot({
 			if (state == 1) {
 				switch(zone,
 					\navigation, {
-						// Column 0: page select
-						if (y == 0) { ~currentPage = 0; "[Grid] Page: Synth".postln };
-						if (y == 1) { ~currentPage = 1; "[Grid] Page: FX".postln };
+						// Column 0: page select + clock controls
+						if (y == 0) {
+							~currentPage = 0;
+							~pressedPageButton = 0;  // Track for preset saving
+							"[Grid] Page: Synth".postln;
+						};
+						if (y == 1) {
+							~currentPage = 1;
+							~pressedPageButton = 1;  // Track for preset saving
+							"[Grid] Page: FX".postln;
+						};
+						if (y == 2) {
+							// Tap tempo - OR set loop length if seq step held
+							if (~pressedSeqStep.notNil) {
+								var row = ~pressedSeqStep[0];
+								var step = ~pressedSeqStep[1];
+								~sequencer.setLoopLength(row, step + 1);
+								"[Grid] Seq row % loop length: %".format(row, step + 1).postln;
+							} {
+								~tapTempo.();
+							};
+						};
+						if (y == 3) { ~toggleTransport.() };  // Transport start/stop
 						~updateGridLEDs.();
 					},
 					\paramGrid, {
@@ -603,64 +868,117 @@ s.waitForBoot({
 					\gestures, {
 						// Cols 12-15, rows 0-3: gesture slots
 						var slot = ((y * 4) + (x - 12));
-						var state = ~gestures.getState(slot);
 
-						// State machine
-						switch(state,
-							\empty, {
-								~gestures.startRecording(slot);
-								~recordingSlot = slot;
-								"[Grid] Recording gesture %".format(slot).postln;
-							},
-							\recording, {
-								~gestures.stopRecording(slot);
-								~recordingSlot = nil;
-								"[Grid] Stopped recording gesture %".format(slot).postln;
-								// Auto-play after recording
-								~playGesture.(slot);
-								"[Grid] Playing gesture %".format(slot).postln;
-							},
-							\stopped, {
-								~playGesture.(slot);
-								"[Grid] Playing gesture %".format(slot).postln;
-							},
-							\paused, {
-								~playGesture.(slot);
-								"[Grid] Resumed gesture %".format(slot).postln;
-							},
-							\playing, {
-								// Ignore single tap while playing
-							}
-						);
+						// If seq step is held, assign gesture to that step
+						if (~pressedSeqStep.notNil) {
+							var row = ~pressedSeqStep[0];
+							var step = ~pressedSeqStep[1];
+							~sequencer.assignGesture(row, step, slot);
+							"[Grid] Seq row % step %: assigned gesture %".format(row, step, slot).postln;
+						} {
+							// If page button is held, save current state as preset
+							if (~pressedPageButton.notNil) {
+								~gestures.savePreset(slot, ~voiceDacState, ~fxDacState);
+								"[Grid] Saved preset to slot % (voice: %, fx: %)".format(
+									slot, ~voiceDacState, ~fxDacState
+								).postln;
+							} {
+								// Normal gesture interaction
+								var state = ~gestures.getState(slot);
+
+								// State machine
+								switch(state,
+									\empty, {
+										~gestures.startRecording(slot);
+										~recordingSlot = slot;
+										"[Grid] Recording gesture %".format(slot).postln;
+									},
+									\recording, {
+										~gestures.stopRecording(slot);
+										~recordingSlot = nil;
+										"[Grid] Stopped recording gesture %".format(slot).postln;
+										// Auto-play after recording
+										~playGesture.(slot);
+										"[Grid] Playing gesture %".format(slot).postln;
+									},
+									\stopped, {
+										~playGesture.(slot);
+										"[Grid] Playing gesture %".format(slot).postln;
+									},
+									\paused, {
+										~playGesture.(slot);
+										"[Grid] Resumed gesture %".format(slot).postln;
+									},
+									\playing, {
+										// Ignore single tap while playing
+									}
+								);
+							};
+						};
 
 						~updateGridLEDs.();
 					},
 					\sequencer, {
-						// Rows 4-7: sequencer
+						// Rows 4-7: sequencer (16 steps × 4 rows)
 						var step = x;
 						var row = y - 4;
-						"[Grid] Seq step: %, row: %".format(step, row).postln;
+
+						// Track pressed state for hold+tap gesture assignment
+						~pressedSeqStep = [row, step];
+						"[Grid] Seq step pressed: row %, step %".format(row, step).postln;
+
+						~updateGridLEDs.();
 					}
 				);
+			} {
+				// Key release (state == 0)
+				var zone = ~grid.getZone(x, y);
+				if (zone == \sequencer) {
+					~pressedSeqStep = nil;
+				};
+				if (zone == \navigation) {
+					if ((y == 0) || (y == 1)) {
+						~pressedPageButton = nil;
+					};
+				};
 			};
 		});
 
-		// Set up hold callback for clearing gestures
+		// Set up hold callback for clearing gestures and transport reset
 		~grid.hold({ |x, y|
-			if (~grid.getZone(x, y) == \gestures) {
+			var zone = ~grid.getZone(x, y);
+			if (zone == \gestures) {
 				var slot = ((y * 4) + (x - 12));
 				~gestures.clear(slot);
 				"[Grid] Gesture % cleared".format(slot).postln;
 				~updateGridLEDs.();
 			};
+			if (zone == \navigation) {
+				if (y == 3) {
+					// Hold transport = stop and reset to beginning
+					~stopTransport.();
+					~sequencer.reset;
+					"[Clock] Transport reset to beginning".postln;
+					~updateGridLEDs.();
+				};
+			};
+			// Note: loop length is set via hold step + tap tempo (handled in navigation)
 		});
 
-		// Set up doubleTap callback for pausing gestures
+		// Set up doubleTap callback for pausing gestures and clearing seq steps
 		~grid.doubleTap({ |x, y|
-			if (~grid.getZone(x, y) == \gestures) {
+			var zone = ~grid.getZone(x, y);
+			if (zone == \gestures) {
 				var slot = ((y * 4) + (x - 12));
 				~gestures.pause(slot);
 				"[Grid] Gesture % paused".format(slot).postln;
+				~updateGridLEDs.();
+			};
+			if (zone == \sequencer) {
+				var step = x;
+				var row = y - 4;
+				~sequencer.assignGesture(row, step, nil);
+				"[Grid] Seq row % step %: cleared".format(row, step).postln;
 				~updateGridLEDs.();
 			};
 		});
@@ -696,27 +1014,75 @@ s.waitForBoot({
 			};
 
 			// Gesture slots (cols 12-15, rows 0-3)
-			// Playing slots handled by breath task
+			// Playing slots handled by breath task, flashing slots skipped
 			4.do { |row|
 				4.do { |col|
 					var slot = (row * 4) + col;
-					var state = ~gestures.getState(slot);
-					if (state != \playing) {
-						var brightness = switch(state,
-							\empty, { GridInterface.ledOff },
-							\recording, { GridInterface.ledFull },
-							\stopped, { GridInterface.ledMedium },
-							\paused, { GridInterface.ledBright },
-							{ GridInterface.ledDim }
-						);
-						~grid.led(col + 12, row, brightness);
+					// Skip if slot is currently flashing
+					if (~flashingSlots.includes(slot).not) {
+						var state = ~gestures.getState(slot);
+						if (state != \playing) {
+							var brightness;
+							var isPreset = ~gestures.isPreset(slot);
+
+							// Active preset (manual) gets full brightness
+							if (isPreset && ~activePreset.notNil && (~activePreset == slot)) {
+								brightness = GridInterface.ledFull;
+							} {
+								brightness = switch(state,
+									\empty, { GridInterface.ledOff },
+									\recording, { GridInterface.ledFull },
+									\stopped, {
+										// Presets: dim unless active; Gestures: medium
+										if (isPreset) { GridInterface.ledDim } { GridInterface.ledMedium }
+									},
+									\paused, { GridInterface.ledBright },
+									{ GridInterface.ledDim }
+								);
+							};
+							~grid.led(col + 12, row, brightness);
+						};
 					};
 				};
 			};
 
-			// Page indicator
+			// Page indicator (row 0-1)
 			~grid.led(0, 0, if(~currentPage == 0) { GridInterface.ledFull } { GridInterface.ledDim });
 			~grid.led(0, 1, if(~currentPage == 1) { GridInterface.ledFull } { GridInterface.ledDim });
+
+			// Tap tempo (row 2) - dim
+			~grid.led(0, 2, GridInterface.ledDim);
+
+			// Transport (row 3) - bright when running
+			~grid.led(0, 3, if(~transport == \running) { GridInterface.ledFull } { GridInterface.ledDim });
+
+			// Sequencer (rows 4-7, cols 0-15)
+			4.do { |row|
+				var currentStep = ~sequencer.getStepForRow(row);
+				var loopLen = ~sequencer.loopLengths[row];
+
+				16.do { |step|
+					var brightness;
+					if (step >= loopLen) {
+						// Beyond loop length - off
+						brightness = GridInterface.ledOff;
+					} {
+						if (step == currentStep) {
+							// Current step - bright
+							brightness = GridInterface.ledFull;
+						} {
+							if (~sequencer.hasGestureAt(row, step)) {
+								// Has gesture - medium
+								brightness = GridInterface.ledMedium;
+							} {
+								// Empty step - dim
+								brightness = GridInterface.ledDim;
+							};
+						};
+					};
+					~grid.led(step, row + 4, brightness);
+				};
+			};
 		};
 
 		// Gesture LED breathing task
@@ -751,6 +1117,18 @@ s.waitForBoot({
 			~gestureBreathTask.stop;
 			~gestureBreathTask = nil;
 		};
+		if (~clockRoutine.notNil) {
+			~clockRoutine.stop;
+			~clockRoutine = nil;
+		};
+		// Stop all row playback routines
+		4.do { |row|
+			if (~rowPlaybackRoutines[row].notNil) {
+				~rowPlaybackRoutines[row].stop;
+				~rowPlaybackRoutines[row] = nil;
+			};
+		};
+		~transport = \stopped;
 		if (~grid.notNil) {
 			~grid.free;
 			~grid = nil;
@@ -792,6 +1170,12 @@ s.waitForBoot({
 	"[Griddlecake]   ~connectGrid.()               - Connect to oscgrid".postln;
 	"[Griddlecake]   ~disconnectGrid.()            - Disconnect grid".postln;
 	"[Griddlecake]   ~gridIP = \"x.x.x.x\"           - Set iPad IP".postln;
+	"[Griddlecake] Clock/Transport:".postln;
+	"[Griddlecake]   ~tapTempo.()                  - Register tap for tempo".postln;
+	"[Griddlecake]   ~startTransport.()            - Start sequencer".postln;
+	"[Griddlecake]   ~stopTransport.()             - Stop sequencer".postln;
+	"[Griddlecake]   ~toggleTransport.()           - Toggle sequencer".postln;
+	"[Griddlecake]   ~bpm                          - Current BPM (%)".format(~bpm).postln;
 	"[Griddlecake] ========================================".postln;
 
 	// Apply initial state
