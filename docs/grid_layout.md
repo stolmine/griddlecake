@@ -1,67 +1,110 @@
 # Grid Layout & Interaction
 
-Physical layout and interaction model for 128 Grid (16×8).
+Physical layout and interaction model for 128 Grid (16×8) - Music Mode v0.1.0b.
 
 ---
 
-## Physical Layout
+## Quick Reference Map
 
 ```
-Column: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
-Row 0:  s [p  p  p  p][-  i  >][l  l  l  l][g  g  g  g]
-Row 1:  a [p  p  p  p][-  i  >][l  l  l  l][g  g  g  g]
-Row 2:  ; [p  p  p  p][-  i  >][.  .  .  .][g  g  g  g]
-Row 3:  : [p  p  p  p][-  i  >][.  .  .  .][g  g  g  g]
-Row 4:  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
-Row 5:  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
-Row 6:  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
-Row 7:  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
-
-Legend:
-  s/a   = Page select (synth/fx)
-  ;/:   = Tap tempo / Transport
-  p     = Parameter grid (4×4 DAC bits)
-  -/i/> = Utilities (clear/invert/shift row)
-  l     = Slew grid (time/curve)
-  .     = Deferred (dim)
-  g     = Gesture slots (4×4 = 16 slots)
-  x     = Sequencer (4 rows × 16 steps)
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    GRIDDLECAKE v0.1.0b - MUSIC MODE                          ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Column: 0     1  2  3  4     5  6  7  8     9 10 11 12    13 14 15          ║
+║         ┌───┬─────────────┬─────────────┬──────────────┬────────────┐        ║
+║  Row 0: │ M │ v  v  v  v  │ h  h  h  h  │ Lv Lv Lv Lv  │ g  g  g    │        ║
+║  Row 1: │ G │ v  v  v  v  │ h  h  h  h  │ Lv Lv Lv Lv  │ g  g  g    │        ║
+║  Row 2: │ + │ v  v  v  v  │ h  h  h  h  │ Lv Lv Lv Lv  │ g  g  g    │        ║
+║  Row 3: │ - │ v  v  v  v  │ h  h  h  h  │ Lv Lv Lv Lv  │ g  g  g    │        ║
+║         ├───┼─────────────┼─────────────┼──────────────┼────────────┤        ║
+║  Row 4: │ T │ f  f  f  f  │ C  C# D  D# │ Lf Lf Lf Lf  │ g  g  g    │        ║
+║  Row 5: │ H │ f  f  f  f  │ E  F  F# G  │ Lf Lf Lf Lf  │ g  g  g    │        ║
+║  Row 6: │   │ f  f  f  f  │ G# A  A# B  │ Lf Lf Lf Lf  │ g  g  g    │        ║
+║  Row 7: │   │ f  f  f  f  │ S  S  S  S  │ Lf Lf Lf Lf  │ g  g  g    │        ║
+║         └───┴─────────────┴─────────────┴──────────────┴────────────┘        ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  GLOBAL (col 0)        │  VOICE/FX DAC (1-4)   │  HARMONY (5-8)              ║
+║  M = Mute toggle       │  v = Voice params     │  h = Harmonic DAC (16-bit)  ║
+║  G = Gesture ctrl      │      (rows 0-3)       │  C-B = Root select (12)     ║
+║  + = Octave up         │  f = FX params        │  S = Scale select (4-bit)   ║
+║  - = Octave down       │      (rows 4-7)       │                             ║
+║  T = Tuning (TET/Just) │                       │                             ║
+║  H = Home state        │                       │                             ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  SLEW (9-12)           │  GESTURES (13-15)                                   ║
+║  Lv = Voice slew       │  g = 24 slots (3×8)                                 ║
+║       Row 0: Time      │      Rows 0-3: Voice gestures                       ║
+║       Row 1: Curve     │      Rows 4-7: FX gestures                          ║
+║  Lf = FX slew          │  Tap=record, Tap=stop+play, Double-tap=pause        ║
+║       Row 4: Time      │  Hold=clear                                         ║
+║       Row 5: Curve     │                                                     ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  SCALES: 0=Major 1=Minor 2=HarmMin 3=MelMin 4=Dorian 5=Phrygian 6=Lydian     ║
+║  7=Mixo 8=Locrian 9=PentMaj 10=PentMin 11=Blues 12=Whole 13=Dim 14=Aug 15=Chr║
+╚══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+---
+
+## Physical Layout (Simple)
+
+```
+Column: 0    1  2  3  4    5  6  7  8    9 10 11 12   13 14 15
+        ┌──┬───────────┬───────────┬────────────┬──────────┐
+Row 0:  │M │ v  v  v  v│ h  h  h  h│ Lv Lv Lv Lv│ g  g  g │
+Row 1:  │G │ v  v  v  v│ h  h  h  h│ Lv Lv Lv Lv│ g  g  g │
+Row 2:  │+ │ v  v  v  v│ h  h  h  h│ Lv Lv Lv Lv│ g  g  g │
+Row 3:  │- │ v  v  v  v│ h  h  h  h│ Lv Lv Lv Lv│ g  g  g │
+        ├──┼───────────┼───────────┼────────────┼──────────┤
+Row 4:  │T │ f  f  f  f│ R  R  R  R│ Lf Lf Lf Lf│ g  g  g │
+Row 5:  │H │ f  f  f  f│ R  R  R  R│ Lf Lf Lf Lf│ g  g  g │
+Row 6:  │. │ f  f  f  f│ R  R  R  R│ Lf Lf Lf Lf│ g  g  g │
+Row 7:  │. │ f  f  f  f│ S  S  S  S│ Lf Lf Lf Lf│ g  g  g │
+        └──┴───────────┴───────────┴────────────┴──────────┘
+```
+
+**Legend:**
+- **M** = Mute (on/off toggle)
+- **G** = Gesture start/stop (reserved)
+- **+/-** = Octave up/down
+- **T** = Tuning toggle (12TET / Just Intonation)
+- **H** = Home state
+- **.** = Reserved
+- **v** = Voice chaos DAC (4×4 = 16-bit)
+- **f** = FX chaos DAC (4×4 = 16-bit)
+- **h** = Harmonic DAC (4×4 = 16-bit chord voicing)
+- **R** = Root select (12 chromatic, mutually exclusive)
+- **S** = Scale select (4-bit = 16 scales)
+- **Lv** = Voice slew (time/curve)
+- **Lf** = FX slew (time/curve)
+- **g** = Gesture slots (3×8 = 24 total)
 
 ---
 
 ## Control Zones
 
-### Navigation (Column 0, Rows 0-3)
+### Global Controls (Column 0)
 
-| Button | Position | Function |
-|--------|----------|----------|
-| **s** | (0,0) | Synth parameter page |
-| **a** | (0,1) | FX parameter page |
-| **;** | (0,2) | Tap tempo |
-| **:** | (0,3) | Transport start/stop |
+| Row | Button | Function |
+|-----|--------|----------|
+| 0 | **M** | Mute toggle |
+| 1 | **G** | Gesture start/stop (reserved) |
+| 2 | **+** | Octave up (-2 to +2 range) |
+| 3 | **-** | Octave down |
+| 4 | **T** | Tuning toggle (12TET ↔ Just) |
+| 5 | **H** | Home state (reset to 0,0,0) |
+| 6-7 | **.** | Reserved |
 
-#### Modifier: Hold Tap (`;`) + Param Grid = Volume
-
-Hold the tap button and press any of the 16 param grid buttons to set master volume.
-
-```
-Volume levels (1-16, bottom-left to top-right):
-[13][14][15][16]  Row 0 (loudest)
-[ 9][10][11][12]  Row 1
-[ 5][ 6][ 7][ 8]  Row 2
-[ 1][ 2][ 3][ 4]  Row 3 (quietest)
-```
-
-- Volume is **NOT stored in LUT** - always user-controlled
-- Persists across LUT state changes
-- Saved/loaded with project state
+**LED Feedback:**
+- Mute: Full when muted, dim otherwise
+- Tuning: Full when Just, dim when 12TET
+- Others: Dim static
 
 ---
 
-### Parameter Grid (Cols 1-4, Rows 0-3)
+### Voice DAC (Cols 1-4, Rows 0-3)
 
-16 toggle buttons representing bits 15-0 of DAC state.
+16 toggle buttons representing bits 15-0 of voice chaos state.
 
 ```
 Bit layout:
@@ -71,47 +114,118 @@ Bit layout:
 [ 3][ 2][ 1][ 0]   Row 3
 ```
 
-**Pages:**
-- **Synth page (s):** Controls synth DAC state
-- **FX page (a):** Controls FX DAC state
-
-**Brightness:**
-- `0` = bit off
-- `15` = bit on
-- Intermediate values during blending (future feature)
-
----
-
-### Utilities (Cols 5-7, Rows 0-3)
-
-Row operations on the param grid. Each row button operates on the corresponding param grid row.
-
-| Button | Position | Function |
-|--------|----------|----------|
-| **-** | (5, 0-3) | Clear row (zero all 4 bits) |
-| **i** | (6, 0-3) | Invert row (XOR with 0xF) |
-| **>** | (7, 0-3) | Shift row right (rotate within 4 bits) |
-
-**Brightness:** Dim at rest, medium on touch.
+**Controls (non-pitch):**
+- Oscillator waveforms and pulse widths
+- Tracking and ratios for osc2/osc3
+- FM amount, combo mode, combo mix, detune
+- Noise parameters
+- Filter frequency, resonance, type, tracking
+- Output level
 
 ---
 
-### Slew Grid (Cols 8-11, Rows 0-3)
+### FX DAC (Cols 1-4, Rows 4-7)
 
-| Row | Function | Values |
-|-----|----------|--------|
-| 0 | Time | 4 bits → 16 time values (10ms-10s exp) |
-| 1 | Curve | 4 bits → 16 values (-8 to +8 linear) |
-| 2 | Time offset | Deferred |
-| 3 | Curve offset | Deferred |
+16 toggle buttons for FX chaos state. Same bit layout as voice DAC.
+
+**Controls:**
+- Lo-Fi: bits, rate, mix
+- Ring Mod: freq, wave, mix
+- Comb: freq, decay, mix
+- Delay: time, feedback, mix
+- MiClouds: position, size, density, texture, mode, reverb, mix
+
+---
+
+### Harmonic DAC (Cols 5-8, Rows 0-3)
+
+16-bit index into HarmonicLUT for chord voicing selection.
+
+**LUT Entry Structure:**
+- osc1_degree (weighted toward root)
+- osc2_degree, osc3_degree
+- Octave offsets for each oscillator
+- Voicing spread
+- Detune amount
+
+Frequencies are calculated from degree + root + scale + tuning.
+
+---
+
+### Root Select (Cols 5-8, Rows 4-6)
+
+12 buttons for chromatic root selection (mutually exclusive).
+
+```
+[C ][C#][D ][D#]   Row 4
+[E ][F ][F#][G ]   Row 5
+[G#][A ][A#][B ]   Row 6
+```
+
+**LED Feedback:**
+- Selected root: Full brightness
+- Others: Dim
+
+---
+
+### Scale Select (Cols 5-8, Row 7)
+
+4-bit binary selection → 16 scales.
+
+| Index | Scale |
+|-------|-------|
+| 0 | Major (Ionian) |
+| 1 | Natural Minor |
+| 2 | Harmonic Minor |
+| 3 | Melodic Minor |
+| 4 | Dorian |
+| 5 | Phrygian |
+| 6 | Lydian |
+| 7 | Mixolydian |
+| 8 | Locrian |
+| 9 | Pentatonic Major |
+| 10 | Pentatonic Minor |
+| 11 | Blues |
+| 12 | Whole Tone |
+| 13 | Diminished |
+| 14 | Augmented |
+| 15 | Chromatic |
+
+---
+
+### Voice Slew (Cols 9-12, Rows 0-3)
+
+| Row | Function | Range |
+|-----|----------|-------|
+| 0 | Time | 4-bit → 10ms-10s (exponential) |
+| 1 | Curve | 4-bit → -8 to +8 (linear) |
+| 2 | Reserved | - |
+| 3 | Reserved | - |
 
 Uses VarLag for smooth parameter transitions with curve shaping.
 
 ---
 
-### Gesture Slots (Cols 12-15, Rows 0-3)
+### FX Slew (Cols 9-12, Rows 4-7)
 
-16 total gesture/preset slots arranged in a 4×4 grid.
+| Row | Function | Range |
+|-----|----------|-------|
+| 4 | Time | 4-bit → 10ms-10s (exponential) |
+| 5 | Curve | 4-bit → -8 to +8 (linear) |
+| 6 | Reserved | - |
+| 7 | Reserved | - |
+
+Independent slew control for FX parameters.
+
+---
+
+### Gesture Slots (Cols 13-15, Rows 0-7)
+
+24 total gesture/preset slots (3 columns × 8 rows).
+
+**Split by Row:**
+- Rows 0-3: Voice gestures (12 slots)
+- Rows 4-7: FX gestures (12 slots)
 
 **Interaction Model:**
 
@@ -134,54 +248,10 @@ Uses VarLag for smooth parameter transitions with curve shaping.
 | Paused | Bright (12) |
 | Playing | Breathing (8↔15) |
 
-**Gesture Data Structure:**
-```supercollider
-~gestures[slotIndex] = (
-    steps: [
-        (time: 0,    state: 23456),
-        (time: 500,  state: 23200),  // after clearRow
-        (time: 750,  state: 46400),  // after shiftRow
-        (time: 1200, state: 51234)
-    ]
-);
-```
-
-**Notes:**
-- Single-step gesture = preset (instant state change)
-- Multi-step gesture = timed state sequence
-- Actions recorded as resulting states, not operations
-- Enables averaging (gestures are always integer sequences)
-
----
-
-### Sequencer (Cols 0-15, Rows 4-7)
-
-4 rows × 16 steps for polymetric sequencing.
-
-**Per-Step Behavior:**
-| Action | Result |
-|--------|--------|
-| Press | Select gesture slot to trigger (cycles 0-15) |
-| Hold + tap `;` | Set as last step for that row (loop point) |
-
-**Row Behavior:**
-- Each row runs independently (polymetric if different loop lengths)
-- Step advances on clock tick
-- Triggering gesture updates that row's latched state
-- No gesture = no contribution to blend (not zero, just absent)
-
-**Visual Feedback:**
-| Brightness | Meaning |
-|------------|---------|
-| 15 (bright) | Current step |
-| 8 (medium) | Has gesture assigned |
-| 3 (dim) | Empty step |
-| 0 (off) | Beyond loop length |
-
 ---
 
 ## Related Documents
 
 - [Core Concepts](core_concepts.md) - DAC paradigm details
-- [Sequencer](sequencer.md) - Sequencer behavior in depth
-- [Clock & Transport](clock_transport.md) - Tap tempo, transport
+- [Voice Architecture](voice_architecture.md) - 3-oscillator system
+- [Implementation](implementation.md) - Development phases

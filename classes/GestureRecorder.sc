@@ -9,18 +9,18 @@ GestureRecorder {
 	}
 
 	init {
-		gestures = Array.newClear(16);
-		states = Array.fill(16, { \empty });
-		recordingStartTimes = Array.newClear(16);
-		playbackRoutines = Array.newClear(16);
+		gestures = Array.newClear(24);
+		states = Array.fill(24, { \empty });
+		recordingStartTimes = Array.newClear(24);
+		playbackRoutines = Array.newClear(24);
 	}
 
 	// ========================================
 	// PRESET METHODS
 	// ========================================
 
-	savePreset { |slot, voiceState, fxState|
-		if ((slot < 0) || (slot >= 16)) {
+	savePreset { |slot, voiceState, fxState, harmonicState|
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -28,13 +28,14 @@ GestureRecorder {
 		gestures[slot] = (
 			type: \preset,
 			voiceState: voiceState,
-			fxState: fxState
+			fxState: fxState,
+			harmonicState: harmonicState
 		);
 		states[slot] = \stopped;
 	}
 
 	isPreset { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 		if (gestures[slot].isNil) { ^false };
@@ -42,11 +43,11 @@ GestureRecorder {
 	}
 
 	getPreset { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 		if (this.isPreset(slot).not) { ^nil };
-		^[gestures[slot][\voiceState], gestures[slot][\fxState]];
+		^[gestures[slot][\voiceState], gestures[slot][\fxState], gestures[slot][\harmonicState]];
 	}
 
 	// ========================================
@@ -54,7 +55,7 @@ GestureRecorder {
 	// ========================================
 
 	startRecording { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -65,7 +66,7 @@ GestureRecorder {
 	}
 
 	stopRecording { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -80,8 +81,8 @@ GestureRecorder {
 		};
 	}
 
-	addStep { |slot, voiceState, fxState|
-		if ((slot < 0) || (slot >= 16)) {
+	addStep { |slot, voiceState, fxState, harmonicState|
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -90,7 +91,8 @@ GestureRecorder {
 			var step = (
 				time: elapsedMs,
 				voiceState: voiceState,
-				fxState: fxState
+				fxState: fxState,
+				harmonicState: harmonicState
 			);
 			gestures[slot][\steps] = gestures[slot][\steps].add(step);
 		};
@@ -103,7 +105,7 @@ GestureRecorder {
 	play { |slot, onStep|
 		var steps, totalDuration;
 
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -128,7 +130,7 @@ GestureRecorder {
 					if (waitTime > 0) {
 						waitTime.wait;
 					};
-					onStep.value(step[\voiceState], step[\fxState]);
+					onStep.value(step[\voiceState], step[\fxState], step[\harmonicState]);
 					prevTime = step[\time];
 				};
 				// Always wait before loop restart (prevents tight loop)
@@ -138,7 +140,7 @@ GestureRecorder {
 	}
 
 	pause { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -152,7 +154,7 @@ GestureRecorder {
 	}
 
 	stop { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -179,7 +181,7 @@ GestureRecorder {
 	// ========================================
 
 	clear { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 
@@ -189,21 +191,21 @@ GestureRecorder {
 	}
 
 	getState { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 		^states[slot];
 	}
 
 	hasGesture { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 		^gestures[slot].notNil;
 	}
 
 	stepCount { |slot|
-		if ((slot < 0) || (slot >= 16)) {
+		if ((slot < 0) || (slot >= 24)) {
 			Error("Slot index out of range: %".format(slot)).throw;
 		};
 		if (gestures[slot].isNil) { ^0 };

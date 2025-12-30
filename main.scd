@@ -1,5 +1,5 @@
-// Griddlecake - Main Boot File
-// Phase 1: Core Engine - LUT, Drone Synth, State Management
+// Griddlecake v0.1.0b - Music Mode
+// 3-osc chord drone with harmonic LUT control
 //
 // Usage: "/path/to/main.scd".load;
 
@@ -21,133 +21,145 @@ s.waitForBoot({
 	s.sync;
 
 	// ========================================
-	// INITIALIZE LUT
+	// INITIALIZE LUTS
 	// ========================================
 
-	"[Griddlecake] Generating Voice LUT (65536 × 20 params)...".postln;
-
-	// Use Date.seed unless ~useSeed is explicitly set before loading
-	// To reuse a seed: ~useSeed = 12345; then load main.scd
+	// Seed management
 	if (~useSeed.notNil) {
 		~lutSeed = ~useSeed;
-		~useSeed = nil;  // Clear so next load gets fresh seed
+		~useSeed = nil;
 		"[Griddlecake] Using provided seed: %".format(~lutSeed).postln;
 	} {
 		~lutSeed = Date.seed;
 		"[Griddlecake] Generated new seed: %".format(~lutSeed).postln;
 	};
 
-	// Generate 65536 randomized voice parameter sets
+	// ----------------------------------------
+	// HARMONIC LUT (controls pitch)
+	// ----------------------------------------
+
+	"[Griddlecake] Generating Harmonic LUT (65536 × 8 params)...".postln;
+	~harmonicLut = HarmonicLUT(~lutSeed);
+	"[Griddlecake] Harmonic LUT complete".postln;
+
+	// ----------------------------------------
+	// VOICE LUT (non-pitch params only)
+	// ----------------------------------------
+
+	"[Griddlecake] Generating Voice LUT (65536 × 23 params)...".postln;
+
 	~voiceLut = Array.fill(65536, { |i|
 		if (i == 0) {
-			// State 0: Simple 55Hz sine (home base)
+			// State 0: Home base - clean sine, no effects
 			[
-				55,    // osc1_freq - 55Hz (A1)
 				0,     // osc1_wave - sine
 				0.5,   // osc1_pw
-				55,    // osc2_freq
 				0,     // osc2_wave - sine
 				0.5,   // osc2_pw
-				0,     // osc2_track - free
-				1,     // osc2_ratio
-				0,     // fm_amount - none
-				0,     // combo_mode - OSC1 only
-				0,     // combo_mix - dry osc1
+				1,     // osc2_track - tracking osc1
+				1,     // osc2_ratio - unison
+				0,     // osc3_wave - sine
+				0.5,   // osc3_pw
+				1,     // osc3_track - tracking osc1
+				1,     // osc3_ratio - unison
+				0,     // fm_amount
+				0,     // combo_mode - CHORD
+				1.0,   // combo_mix - full combo (not dry osc1)
+				0,     // detune - none
 				0,     // noise_type
-				0,     // noise_level - none
-				0,     // noise_to_osc1 - none
-				0,     // noise_to_osc2 - none
+				0,     // noise_level
+				0,     // noise_to_osc1
+				0,     // noise_to_osc2
 				20000, // filter_freq - wide open
-				0,     // filter_res - none
+				0,     // filter_res
 				0,     // filter_type - lowpass
-				0,     // filter_track - none
+				0,     // filter_track
 				0.5    // output_level
 			]
 		} {
-			thisThread.randSeed = ~lutSeed + i; // Deterministic per-index
+			thisThread.randSeed = ~lutSeed + i;
 			[
-				// Oscillators - pow(1.8) moderate bias toward low frequencies
-				// ~55% of values fall in bottom third of range
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // osc1_freq
 				rrand(0, 3).round,        // osc1_wave
 				rrand(0.0, 1.0),          // osc1_pw
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // osc2_freq
 				rrand(0, 3).round,        // osc2_wave
 				rrand(0.0, 1.0),          // osc2_pw
-				rrand(0.0, 1.0),          // osc2_track
-				1.0.rand.pow(1.2).linexp(0, 1, 0.25, 4.0), // osc2_ratio (gentle low bias)
-				rrand(0.0, 1.0),          // fm_amount
-				rrand(0, 8).round,        // combo_mode
-				rrand(0.0, 1.0),          // combo_mix
+				0,                        // osc2_track (always use HarmonicLUT freq)
+				1.0,                      // osc2_ratio (unused when track=0)
+				rrand(0, 3).round,        // osc3_wave
+				rrand(0.0, 1.0),          // osc3_pw
+				0,                        // osc3_track (always use HarmonicLUT freq)
+				1.0,                      // osc3_ratio (unused when track=0)
+				rrand(0.0, 0.15).pow(1.5), // fm_amount (subtle, bias toward 0)
+				[0,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13].choose, // combo_mode
+				rrand(0.7, 1.0),          // combo_mix (always hear the chord)
+				rrand(0.0, 0.3).pow(1.5), // detune (very subtle)
 				rrand(0, 2).round,        // noise_type
-				rrand(0.0, 1.0),          // noise_level
-				rrand(0.0, 1.0),          // noise_to_osc1
-				rrand(0.0, 1.0),          // noise_to_osc2
-				// Filter - pow(1.5) gentle low bias
-				1.0.rand.pow(1.5).linexp(0, 1, 20, 20000), // filter_freq
-				rrand(0.0, 0.99),         // filter_res
-				rrand(0, 3).round,        // filter_type
-				rrand(0.0, 1.0),          // filter_track
-				rrand(0.3, 0.7)           // output_level
+				rrand(0.0, 0.1).pow(2.0), // noise_level (subtle texture only)
+				rrand(0.0, 0.02),         // noise_to_osc1 (minimal pitch mod)
+				rrand(0.0, 0.02),         // noise_to_osc2 (minimal pitch mod)
+				1.0.rand.pow(1.2).linexp(0, 1, 400, 20000), // filter_freq (higher min)
+				rrand(0.0, 0.6).pow(1.5), // filter_res (no self-oscillation)
+				[0, 0, 0, 1].choose,      // filter_type (bias toward lowpass)
+				rrand(0.0, 0.3),          // filter_track (subtle)
+				rrand(0.4, 0.7)           // output_level
 			]
 		}
 	});
 
-	"[Griddlecake] Voice LUT complete (%.2f MB)".format((65536 * 20 * 4) / 1048576).postln;
+	"[Griddlecake] Voice LUT complete (%.2f MB)".format((65536 * 23 * 4) / 1048576).postln;
+
+	// ----------------------------------------
+	// FX LUT
+	// ----------------------------------------
 
 	"[Griddlecake] Generating FX LUT (65536 × 19 params)...".postln;
 
-	// Generate 65536 randomized FX parameter sets
 	~fxLut = Array.fill(65536, { |i|
 		if (i == 0) {
-			// State 0: 100% dry (all FX bypassed)
+			// State 0: 100% dry
 			[
-				16,    // lofi_bits - full resolution
-				48000, // lofi_rate - full sample rate
-				0,     // lofi_mix - dry
+				16,    // lofi_bits
+				48000, // lofi_rate
+				0,     // lofi_mix
 				440,   // ring_freq
 				0,     // ring_wave
-				0,     // ring_mix - dry
+				0,     // ring_mix
 				440,   // comb_freq
 				0.5,   // comb_decay
-				0,     // comb_mix - dry
+				0,     // comb_mix
 				250,   // delay_time
 				0,     // delay_fb
-				0,     // delay_mix - dry
+				0,     // delay_mix
 				0.5,   // clouds_pos
 				0.5,   // clouds_size
 				0.5,   // clouds_dens
 				0.5,   // clouds_tex
 				0,     // clouds_mode
-				0,     // clouds_rvb - no reverb
-				0      // clouds_mix - dry
+				0,     // clouds_rvb
+				0      // clouds_mix
 			]
 		} {
-			thisThread.randSeed = ~lutSeed + 65536 + i; // Different seed offset
+			thisThread.randSeed = ~lutSeed + 65536 + i;
 			[
-				// Lo-Fi
-				rrand(1, 16).round,       // lofi_bits
-				1.0.rand.pow(1.5).linexp(0, 1, 100, 48000),  // lofi_rate (gentle low bias)
-				rrand(0.0, 1.0),          // lofi_mix
-				// Ring mod - moderate low bias
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // ring_freq
-				rrand(0, 3).round,        // ring_wave
-				rrand(0.0, 1.0),          // ring_mix
-				// Comb - moderate low bias
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 5000),  // comb_freq
-				exprand(0.01, 5.0),       // comb_decay
-				rrand(0.0, 1.0),          // comb_mix
-				// Delay
-				1.0.rand.pow(1.2).linexp(0, 1, 1, 2000),   // delay_time (ms)
-				rrand(0.0, 0.99),         // delay_fb
-				rrand(0.0, 1.0),          // delay_mix
+				rrand(10, 16).round,      // lofi_bits (less harsh)
+				1.0.rand.pow(1.2).linexp(0, 1, 12000, 48000), // lofi_rate (less aliasing)
+				rrand(0.0, 0.5),          // lofi_mix
+				1.0.rand.pow(1.5).linexp(0, 1, 100, 2000), // ring_freq
+				[0, 0, 0, 1].choose,      // ring_wave (bias toward sine)
+				rrand(0.0, 0.35),         // ring_mix
+				1.0.rand.pow(1.5).linexp(0, 1, 100, 3000), // comb_freq
+				exprand(0.01, 1.0),       // comb_decay
+				rrand(0.0, 0.5),          // comb_mix
+				1.0.rand.pow(1.2).linexp(0, 1, 50, 800), // delay_time
+				rrand(0.0, 0.5),          // delay_fb
+				rrand(0.0, 0.5),          // delay_mix
 				rrand(0.0, 1.0),          // clouds_pos
-				rrand(0.0, 1.0),          // clouds_size
-				rrand(0.0, 1.0),          // clouds_dens
-				rrand(0.0, 1.0),          // clouds_tex
-				rrand(0, 3).round,        // clouds_mode
-				rrand(0.0, 1.0),          // clouds_rvb
-				rrand(0.0, 1.0)           // clouds_mix
+				rrand(0.3, 0.7),          // clouds_size (moderate)
+				rrand(0.3, 0.7),          // clouds_dens (moderate)
+				rrand(0.2, 0.6),          // clouds_tex (smooth)
+				[0, 0, 1, 2].choose,      // clouds_mode (bias toward cleaner)
+				rrand(0.0, 0.4),          // clouds_rvb
+				rrand(0.0, 0.5)           // clouds_mix
 			]
 		}
 	});
@@ -159,35 +171,20 @@ s.waitForBoot({
 	// ========================================
 
 	~voiceParamNames = [
-		// Oscillators
-		\osc1_freq, \osc1_wave, \osc1_pw,
-		\osc2_freq, \osc2_wave, \osc2_pw, \osc2_track, \osc2_ratio,
-		\fm_amount, \combo_mode, \combo_mix,
-
-		// Noise
+		\osc1_wave, \osc1_pw,
+		\osc2_wave, \osc2_pw, \osc2_track, \osc2_ratio,
+		\osc3_wave, \osc3_pw, \osc3_track, \osc3_ratio,
+		\fm_amount, \combo_mode, \combo_mix, \detune,
 		\noise_type, \noise_level, \noise_to_osc1, \noise_to_osc2,
-
-		// Filter
 		\filter_freq, \filter_res, \filter_type, \filter_track,
-
-		// Output
 		\output_level
 	];
 
 	~fxParamNames = [
-		// Lo-Fi
 		\lofi_bits, \lofi_rate, \lofi_mix,
-
-		// Ring Mod
 		\ring_freq, \ring_wave, \ring_mix,
-
-		// Comb
 		\comb_freq, \comb_decay, \comb_mix,
-
-		// Delay
 		\delay_time, \delay_fb, \delay_mix,
-
-		// MiClouds
 		\clouds_pos, \clouds_size, \clouds_dens, \clouds_tex,
 		\clouds_mode, \clouds_rvb, \clouds_mix
 	];
@@ -207,539 +204,223 @@ s.waitForBoot({
 	~gestures = GestureRecorder.new;
 
 	// ========================================
-	// SEQUENCER & CLOCK
+	// STATE VARIABLES
 	// ========================================
 
-	~sequencer = Sequencer.new;
-	~transport = \stopped;
-	~bpm = 120;
-	~clock = TempoClock(~bpm / 60);
-	~tapTimes = [];
+	// DAC states (16-bit indices)
+	~voiceDacState = 0;
+	~fxDacState = 0;
+	~harmonicDacState = 0;
 
-	// Tap tempo calculation
-	~tapTimeout = 3.0;  // Reset if gap > 3s (allows ~20 BPM minimum)
-	~tapTempo = {
-		var now = Main.elapsedTime;
-		var interval, intervals, avgInterval;
+	// Harmonic system
+	~rootIndex = 0;       // 0-11: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+	~scaleIndex = 0;      // 0-15: see HarmonicLUT scales
+	~tuningSystem = \tet; // \tet or \just
+	~octaveOffset = 0;    // -2 to +2
+	~baseFreq = 55;       // A1 as base (can be adjusted)
 
-		// Reset if too long since last tap
-		if (~tapTimes.size > 0) {
-			interval = now - ~tapTimes.last;
-			if (interval > ~tapTimeout) {
-				~tapTimes = [];
-				"[Clock] Tap tempo reset (timeout)".postln;
-			};
-		};
+	// Mute state
+	~muted = false;
 
-		~tapTimes = ~tapTimes.add(now);
+	// Slew states (separate for voice and FX)
+	~voiceSlewTimeBits = 0;
+	~voiceSlewCurveBits = 0;
+	~fxSlewTimeBits = 0;
+	~fxSlewCurveBits = 0;
 
-		// Keep only last 4 taps
-		if (~tapTimes.size > 4) { ~tapTimes = ~tapTimes.keep(-4) };
-
-		if (~tapTimes.size >= 2) {
-			// Calculate intervals between consecutive taps
-			intervals = [];
-			(~tapTimes.size - 1).do { |i|
-				intervals = intervals.add(~tapTimes[i + 1] - ~tapTimes[i]);
-			};
-
-			avgInterval = intervals.sum / intervals.size;
-			~bpm = (60 / avgInterval).clip(20, 300);
-			~clock.tempo = ~bpm / 60;
-			"[Clock] Tap tempo: % BPM (interval: %s)".format(
-				~bpm.round(0.1),
-				avgInterval.round(0.001)
-			).postln;
-		} {
-			"[Clock] Tap % - need 1 more".format(~tapTimes.size).postln;
-		};
-	};
-
-	// Start transport
-	~startTransport = {
-		if (~transport == \stopped) {
-			~transport = \running;
-			~clockRoutine = Routine({
-				loop {
-					if (~transport == \running) {
-						// Process all sequencer rows
-						4.do { |row|
-							var step = ~sequencer.getStepForRow(row);
-							var gestureSlot = ~sequencer.getGesture(row, step);
-
-							// If step has gesture, trigger it (updates row params)
-							if (gestureSlot.notNil) {
-								~triggerGestureOnRow.(row, gestureSlot);
-							};
-
-							~sequencer.advanceStep(row);
-						};
-
-						// Always apply blended params (even if no gesture triggered)
-						~applyBlendedParams.();
-
-						// Trigger MiClouds on clock
-						~drone.set(\t_clock, 1);
-
-						// Update LEDs
-						~updateGridLEDs.();
-					};
-					~clock.beatDur.wait;
-				};
-			}).play;
-			"[Clock] Transport started".postln;
-		};
-	};
-
-	// Stop transport
-	~stopTransport = {
-		if (~transport == \running) {
-			~transport = \stopped;
-			if (~clockRoutine.notNil) {
-				~clockRoutine.stop;
-				~clockRoutine = nil;
-			};
-			// Stop all row playback routines
-			4.do { |row|
-				if (~rowPlaybackRoutines[row].notNil) {
-					~rowPlaybackRoutines[row].stop;
-					~rowPlaybackRoutines[row] = nil;
-				};
-			};
-			"[Clock] Transport stopped".postln;
-		};
-	};
-
-	// Toggle transport
-	~toggleTransport = {
-		if (~transport == \stopped) {
-			~startTransport.();
-		} {
-			~stopTransport.();
-		};
-	};
-
-	// Apply blended params from sequencer (actual param values, not indices)
-	~applyBlendedParams = {
-		var blend = ~sequencer.calculateBlendedParams;
-		var voiceParams = blend[0];
-		var fxParams = blend[1];
-
-		// Apply voice params directly
-		~voiceParamNames.do { |name, i|
-			~drone.set(name, voiceParams[i]);
-		};
-
-		// Apply FX params directly
-		~fxParamNames.do { |name, i|
-			~drone.set(name, fxParams[i]);
-		};
-	};
-
-	// Per-row gesture playback routines (for interrupt behavior)
-	~rowPlaybackRoutines = Array.newClear(4);
-
-	// Trigger gesture/preset on a row (interrupts any existing playback)
-	~triggerGestureOnRow = { |row, gestureSlot|
-		var gesture, stepsCopy, preset, voiceParams, fxParams;
-
-		// Stop existing playback on this row
-		if (~rowPlaybackRoutines[row].notNil) {
-			~rowPlaybackRoutines[row].stop;
-			~rowPlaybackRoutines[row] = nil;
-		};
-
-		if (~gestures.hasGesture(gestureSlot)) {
-			if (~gestures.isPreset(gestureSlot)) {
-				// Handle preset: apply immediately, no routine needed
-				preset = ~gestures.getPreset(gestureSlot);
-				if (preset.notNil) {
-					voiceParams = ~voiceLut[preset[0].clip(0, 65535)];
-					fxParams = ~fxLut[preset[1].clip(0, 65535)];
-					~sequencer.setRowParams(row, voiceParams, fxParams);
-					~applyBlendedParams.();
-					// Update DAC state for LED display
-					~voiceDacState = preset[0];
-					~fxDacState = preset[1];
-					// Flash preset slot
-					~flashGestureSlot.(gestureSlot);
-				};
-			} {
-				// Handle gesture: play full sequence
-				gesture = ~gestures.gestures[gestureSlot];
-				if (gesture.notNil && gesture[\steps].notNil && (gesture[\steps].size > 0)) {
-					// Deep copy steps at trigger time (immune to later clearing)
-					stepsCopy = gesture[\steps].collect { |step|
-						(time: step[\time], voiceState: step[\voiceState], fxState: step[\fxState])
-					};
-
-					// Start playback routine for this row
-					~rowPlaybackRoutines[row] = Routine({
-						var prevTime = 0;
-
-						stepsCopy.do { |step|
-							var waitTime = (step[\time] - prevTime) / 1000.0;
-							var vParams = ~voiceLut[step[\voiceState].clip(0, 65535)];
-							var fParams = ~fxLut[step[\fxState].clip(0, 65535)];
-
-							if (waitTime > 0) { waitTime.wait };
-
-							// Update row's params
-							~sequencer.setRowParams(row, vParams, fParams);
-
-							// Recalculate and apply blend
-							~applyBlendedParams.();
-
-							prevTime = step[\time];
-						};
-
-						// Gesture complete - row latches at final state
-						~rowPlaybackRoutines[row] = nil;
-					}).play;
-				};
-			};
-		};
-	};
+	// Convert slew bits to values
+	~getSlewTime = { |bits| bits.linexp(0, 15, 0.01, 10.0) };
+	~getSlewCurve = { |bits| bits.linlin(0, 15, -8, 8) };
 
 	// ========================================
-	// INITIALIZE STATE
+	// APPLY STATE FUNCTIONS
 	// ========================================
 
-	~voiceIndex = 0;
-	~fxIndex = 0;
-	~recordingSlot = nil;
-
-	// Initialize all sequencer rows with LUT[0] default params
-	4.do { |row|
-		~sequencer.setRowParams(row, ~voiceLut[0], ~fxLut[0]);
-	};
-
-	// ========================================
-	// HELPER FUNCTIONS
-	// ========================================
-
-	// Apply voice state immediately (no slew)
+	// Apply voice state (non-pitch params)
 	~applyVoiceState = { |index|
 		var params = ~voiceLut[index.asInteger.clip(0, 65535)];
 		~voiceParamNames.do({ |name, i|
-			~drone.set(name, params[i]);
+			// Skip output_level if muted
+			if ((name == \output_level) && ~muted) {
+				~drone.set(\output_level, 0);
+			} {
+				~drone.set(name, params[i]);
+			};
 		});
-		~voiceIndex = index.asInteger;
 	};
 
-	// Apply FX state immediately (no slew)
+	// Apply FX state
 	~applyFxState = { |index|
 		var params = ~fxLut[index.asInteger.clip(0, 65535)];
 		~fxParamNames.do({ |name, i|
 			~drone.set(name, params[i]);
 		});
-		~fxIndex = index.asInteger;
 	};
 
-	// Apply full state immediately (no slew)
-	~applyFullState = { |voiceIdx, fxIdx|
-		~applyVoiceState.(voiceIdx);
-		~applyFxState.(fxIdx);
-		"[Griddlecake] Applied state: voice % / fx %".format(~voiceIndex, ~fxIndex).postln;
+	// Apply harmonic state (frequencies from HarmonicLUT)
+	~applyHarmonicState = { |index|
+		var freqs = ~harmonicLut.getFreqs(
+			index,
+			~rootIndex,
+			~scaleIndex,
+			~tuningSystem,
+			~baseFreq * (2 ** ~octaveOffset)
+		);
+		var detune = ~harmonicLut.getDetune(index);
+
+		~drone.set(
+			\osc1_freq, freqs[0],
+			\osc2_freq, freqs[1],
+			\osc3_freq, freqs[2],
+			\detune, detune
+		);
+
+		"[Harmonic] Freqs: %, %, % (root: %, scale: %)".format(
+			freqs[0].round(0.1),
+			freqs[1].round(0.1),
+			freqs[2].round(0.1),
+			["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][~rootIndex],
+			HarmonicLUT.scaleNames[~scaleIndex]
+		).postln;
 	};
 
-	// Set voice state with slew (interpolates parameter VALUES, not indices)
-	~setVoiceState = { |targetIndex, slewTime = 1.0|
-		var startParams = ~voiceLut[~voiceIndex.clip(0, 65535)];
-		var endIndex = targetIndex.asInteger.clip(0, 65535);
-		var endParams = ~voiceLut[endIndex];
-		var startTime = Main.elapsedTime;
-		var duration = slewTime;
+	// Apply all states
+	~applyFullState = {
+		~applyVoiceState.(~voiceDacState);
+		~applyFxState.(~fxDacState);
+		~applyHarmonicState.(~harmonicDacState);
+	};
 
-		// Stop any existing voice slew routine
-		if (~voiceSlewRoutine.notNil) {
-			~voiceSlewRoutine.stop;
+	// Apply voice slew settings
+	~applyVoiceSlew = {
+		var time = ~getSlewTime.(~voiceSlewTimeBits);
+		var curve = ~getSlewCurve.(~voiceSlewCurveBits);
+		~drone.set(\slew_time, time, \slew_curve, curve);
+		"[Slew] Voice: %s, curve %".format(time.round(0.001), curve.round(0.1)).postln;
+	};
+
+	// Apply FX slew settings
+	~applyFxSlew = {
+		var time = ~getSlewTime.(~fxSlewTimeBits);
+		var curve = ~getSlewCurve.(~fxSlewCurveBits);
+		~drone.set(\fx_slew_time, time, \fx_slew_curve, curve);
+		"[Slew] FX: %s, curve %".format(time.round(0.001), curve.round(0.1)).postln;
+	};
+
+	// Toggle mute
+	~toggleMute = {
+		~muted = ~muted.not;
+		if (~muted) {
+			~drone.set(\output_level, 0);
+			"[Griddlecake] MUTED".postln;
+		} {
+			var params = ~voiceLut[~voiceDacState];
+			~drone.set(\output_level, params[22]); // output_level index
+			"[Griddlecake] UNMUTED".postln;
 		};
-
-		// Create new slew routine
-		~voiceSlewRoutine = Routine({
-			var elapsed, progress, interpParams;
-
-			loop {
-				elapsed = Main.elapsedTime - startTime;
-				progress = (elapsed / duration).clip(0, 1);
-
-				// Interpolate each parameter value
-				interpParams = startParams.collect({ |startVal, i|
-					startVal + ((endParams[i] - startVal) * progress);
-				});
-
-				// Apply interpolated params directly
-				~voiceParamNames.do({ |name, i|
-					~drone.set(name, interpParams[i]);
-				});
-
-				if (progress >= 1.0) {
-					~voiceIndex = endIndex;
-					"[Griddlecake] Voice slew complete: index %".format(endIndex).postln;
-					~voiceSlewRoutine = nil;
-					nil.yield;
-				};
-
-				(1/60).wait;
-			};
-		}).play(AppClock);
 	};
 
-	// Set FX state with slew (interpolates parameter VALUES, not indices)
-	~setFxState = { |targetIndex, slewTime = 1.0|
-		var startParams = ~fxLut[~fxIndex.clip(0, 65535)];
-		var endIndex = targetIndex.asInteger.clip(0, 65535);
-		var endParams = ~fxLut[endIndex];
-		var startTime = Main.elapsedTime;
-		var duration = slewTime;
-
-		// Stop any existing FX slew routine
-		if (~fxSlewRoutine.notNil) {
-			~fxSlewRoutine.stop;
-		};
-
-		// Create new slew routine
-		~fxSlewRoutine = Routine({
-			var elapsed, progress, interpParams;
-
-			loop {
-				elapsed = Main.elapsedTime - startTime;
-				progress = (elapsed / duration).clip(0, 1);
-
-				// Interpolate each parameter value
-				interpParams = startParams.collect({ |startVal, i|
-					startVal + ((endParams[i] - startVal) * progress);
-				});
-
-				// Apply interpolated params directly
-				~fxParamNames.do({ |name, i|
-					~drone.set(name, interpParams[i]);
-				});
-
-				if (progress >= 1.0) {
-					~fxIndex = endIndex;
-					"[Griddlecake] FX slew complete: index %".format(endIndex).postln;
-					~fxSlewRoutine = nil;
-					nil.yield;
-				};
-
-				(1/60).wait;
-			};
-		}).play(AppClock);
+	// Home state
+	~goHome = {
+		~voiceDacState = 0;
+		~fxDacState = 0;
+		~harmonicDacState = 0;
+		~applyFullState.();
+		"[Griddlecake] Home state applied".postln;
 	};
 
 	// ========================================
 	// TEST HELPERS
 	// ========================================
 
-	// Test voice states
 	~testVoice = {
 		var testIndices = [0, 10000, 30000, 50000, 65535];
 		"[Griddlecake] Testing voice states...".postln;
 		fork {
 			testIndices.do({ |idx|
+				~voiceDacState = idx;
 				~applyVoiceState.(idx);
-				"[Griddlecake] Voice test: %".format(idx).postln;
+				"[Test] Voice: %".format(idx).postln;
 				2.wait;
 			});
-			"[Griddlecake] Voice test complete".postln;
 		};
 	};
 
-	// Test FX states
-	~testFx = {
+	~testHarmonic = {
 		var testIndices = [0, 10000, 30000, 50000, 65535];
-		"[Griddlecake] Testing FX states...".postln;
+		"[Griddlecake] Testing harmonic states...".postln;
 		fork {
 			testIndices.do({ |idx|
-				~applyFxState.(idx);
-				"[Griddlecake] FX test: %".format(idx).postln;
+				~harmonicDacState = idx;
+				~applyHarmonicState.(idx);
+				"[Test] Harmonic: %".format(idx).postln;
 				2.wait;
 			});
-			"[Griddlecake] FX test complete".postln;
 		};
 	};
 
-	// Randomize both voice and FX
 	~randomize = {
-		var voiceIdx = 65535.rand;
-		var fxIdx = 65535.rand;
-		~applyFullState.(voiceIdx, fxIdx);
-		"[Griddlecake] Randomized: voice % / fx %".format(voiceIdx, fxIdx).postln;
+		~voiceDacState = 65535.rand;
+		~fxDacState = 65535.rand;
+		~harmonicDacState = 65535.rand;
+		~applyFullState.();
+		"[Griddlecake] Randomized: voice % / fx % / harmonic %".format(
+			~voiceDacState, ~fxDacState, ~harmonicDacState
+		).postln;
 	};
 
-	// Show current seed and state
 	~showSeed = {
 		"[Griddlecake] ========================================".postln;
 		"[Griddlecake] LUT Seed: %".format(~lutSeed).postln;
-		"[Griddlecake] Voice Index: %".format(~voiceIndex).postln;
-		"[Griddlecake] FX Index: %".format(~fxIndex).postln;
+		"[Griddlecake] Voice DAC: %".format(~voiceDacState).postln;
+		"[Griddlecake] FX DAC: %".format(~fxDacState).postln;
+		"[Griddlecake] Harmonic DAC: %".format(~harmonicDacState).postln;
+		"[Griddlecake] Root: % (%)".format(~rootIndex, ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][~rootIndex]).postln;
+		"[Griddlecake] Scale: % (%)".format(~scaleIndex, HarmonicLUT.scaleNames[~scaleIndex]).postln;
+		"[Griddlecake] Tuning: %".format(~tuningSystem).postln;
 		"[Griddlecake] ========================================".postln;
-		~lutSeed;  // Return seed value
-	};
-
-	// Set slew time (also updates grid state to nearest match)
-	~setSlew = { |time, curve|
-		var timeBits = time.explin(0.01, 10.0, 0, 15).round.asInteger.clip(0, 15);
-		~slewTimeBits = timeBits;
-		if (curve.notNil) {
-			var curveBits = curve.linlin(-8, 8, 0, 15).round.asInteger.clip(0, 15);
-			~slewCurveBits = curveBits;
-		};
-		~applySlew.();
-	};
-
-	// Set slew curve only
-	~setCurve = { |curve|
-		var curveBits = curve.linlin(-8, 8, 0, 15).round.asInteger.clip(0, 15);
-		~slewCurveBits = curveBits;
-		~applySlew.();
-	};
-
-	// Track flashing slots (so updateGridLEDs doesn't overwrite)
-	~flashingSlots = Set.new;
-
-	// Track active preset for mutual exclusion (manual taps only)
-	~activePreset = nil;
-
-	// Flash a gesture slot LED (for preset feedback)
-	~flashGestureSlot = { |slot|
-		var col = slot % 4;
-		var row = (slot / 4).floor.asInteger;
-		if (~grid.notNil) {
-			~flashingSlots.add(slot);
-			~grid.led(col + 12, row, GridInterface.ledFull);
-			AppClock.sched(0.15, {
-				~flashingSlots.remove(slot);
-				~updateGridLEDs.();
-				nil;
-			});
-		};
-	};
-
-	// Play gesture or apply preset (manual tap version)
-	~playGesture = { |slot|
-		if (~gestures.isPreset(slot)) {
-			// Preset: apply instantly, no loop
-			var preset = ~gestures.getPreset(slot);
-			if (preset.notNil) {
-				~voiceDacState = preset[0];
-				~fxDacState = preset[1];
-				~applyVoiceState.(~voiceDacState);
-				~applyFxState.(~fxDacState);
-				~activePreset = slot;  // Mutual exclusion: only this preset active
-				~updateGridLEDs.();  // Update LEDs to dim other presets
-				~flashGestureSlot.(slot);  // Flash feedback (overrides for this slot)
-				"[Grid] Applied preset % (activePreset now %)".format(slot, ~activePreset).postln;
-			};
-		} {
-			// Gesture: play with looping (clears active preset)
-			~activePreset = nil;
-			~updateGridLEDs.();
-			~gestures.play(slot, { |voiceState, fxState|
-				~voiceDacState = voiceState;
-				~fxDacState = fxState;
-				~applyVoiceState.(voiceState);
-				~applyFxState.(fxState);
-				~updateGridLEDs.();
-			});
-		};
+		~lutSeed;
 	};
 
 	// ========================================
-	// EQ & COMPRESSOR (SClang control only)
+	// EQ & COMPRESSOR
 	// ========================================
 
-	// EQ controls
 	~eq = { |low=0, mid=0, high=0|
 		~drone.set(\eq_low_gain, low, \eq_mid_gain, mid, \eq_high_gain, high);
-		"[Griddlecake] EQ: low %dB, mid %dB, high %dB".format(low, mid, high).postln;
 	};
 
 	~eqFreqs = { |low=200, mid=1000, high=4000|
 		~drone.set(\eq_low_freq, low, \eq_mid_freq, mid, \eq_high_freq, high);
-		"[Griddlecake] EQ freqs: low %Hz, mid %Hz, high %Hz".format(low, mid, high).postln;
 	};
 
-	~eqMidQ = { |q=0.5|
-		~drone.set(\eq_mid_q, q);
-		"[Griddlecake] EQ mid Q: %".format(q).postln;
-	};
-
-	// Compressor controls
 	~comp = { |thresh=0.5, ratio=2, attack=0.01, release=0.1, makeup=1|
-		~drone.set(
-			\comp_thresh, thresh,
-			\comp_ratio, ratio,
-			\comp_attack, attack,
-			\comp_release, release,
-			\comp_makeup, makeup
-		);
-		"[Griddlecake] Comp: thresh %, ratio %:1, atk %s, rel %s, makeup %".format(
-			thresh, ratio, attack, release, makeup
-		).postln;
+		~drone.set(\comp_thresh, thresh, \comp_ratio, ratio,
+			\comp_attack, attack, \comp_release, release, \comp_makeup, makeup);
 	};
 
-	// Bypass EQ (set all gains to 0)
-	~eqBypass = {
-		~drone.set(\eq_low_gain, 0, \eq_mid_gain, 0, \eq_high_gain, 0);
-		"[Griddlecake] EQ bypassed".postln;
-	};
-
-	// Bypass compressor (ratio 1:1)
-	~compBypass = {
-		~drone.set(\comp_ratio, 1, \comp_makeup, 1);
-		"[Griddlecake] Compressor bypassed".postln;
-	};
+	~eqBypass = { ~drone.set(\eq_low_gain, 0, \eq_mid_gain, 0, \eq_high_gain, 0) };
+	~compBypass = { ~drone.set(\comp_ratio, 1, \comp_makeup, 1) };
 
 	// ========================================
 	// GRID INTEGRATION
 	// ========================================
 
-	// Grid config - UPDATE THESE for your setup
-	~gridIP = "192.168.1.244";  // iPad IP for oscgrid
-	~gridPort = 9000;           // TouchOSC receive port
+	~gridIP = "192.168.1.244";
+	~gridPort = 9000;
 
-	// Current page (0 = synth/voice, 1 = FX)
-	~currentPage = 0;
-
-	// Separate 16-bit DAC states for each page
-	~voiceDacState = 0;
-	~fxDacState = 0;
-
-	// Modifier state: track pressed sequencer step for hold+tap gestures
-	~pressedSeqStep = nil;  // [row, step] or nil
-
-	// Modifier state: track pressed page button for preset saving
-	~pressedPageButton = nil;  // 0 = synth, 1 = FX, nil = none
-
-	// Slew grid state (4-bit each, 0-15)
-	~slewTimeBits = 0;    // Row 0: time (10ms-10s)
-	~slewCurveBits = 0;   // Row 1: curve (-8 to +8)
-	// Row 2, 3: deferred (time offset, curve offset)
-
-	// Convert slew bits to actual values
-	~getSlewTime = { ~slewTimeBits.linexp(0, 15, 0.01, 10.0) };
-	~getSlewCurve = { ~slewCurveBits.linlin(0, 15, -8, 8) };
-
-	// Apply current slew settings to synth
-	~applySlew = {
-		var time = ~getSlewTime.();
-		var curve = ~getSlewCurve.();
-		~drone.set(\slew_time, time, \slew_curve, curve);
-		"[Grid] Slew: %s, curve %".format(time.round(0.001), curve.round(0.1)).postln;
-	};
+	// Gesture recording state
+	~recordingSlot = nil;
+	~flashingSlots = Set.new;
+	~activePreset = nil;
 
 	// Connect to grid
 	~connectGrid = {
-		// Disconnect existing grid first to prevent duplicate handlers
 		if (~gestureBreathTask.notNil) {
 			~gestureBreathTask.stop;
 			~gestureBreathTask = nil;
 		};
 		if (~grid.notNil) {
-			"[Griddlecake] Disconnecting existing grid...".postln;
 			~grid.free;
 			~grid = nil;
 		};
@@ -747,367 +428,297 @@ s.waitForBoot({
 		"[Griddlecake] Connecting to grid at %:%".format(~gridIP, ~gridPort).postln;
 		~grid = GridInterface(~gridIP, ~gridPort, oscgrid: true);
 
-		// Set up key handler
+		// Key handler
 		~grid.key({ |x, y, state|
 			var zone = ~grid.getZone(x, y);
 
 			if (state == 1) {
+				// Key press
 				switch(zone,
-					\navigation, {
-						// Column 0: page select + clock controls
-						if (y == 0) {
-							~currentPage = 0;
-							~pressedPageButton = 0;  // Track for preset saving
-							"[Grid] Page: Synth".postln;
-						};
-						if (y == 1) {
-							~currentPage = 1;
-							~pressedPageButton = 1;  // Track for preset saving
-							"[Grid] Page: FX".postln;
-						};
-						if (y == 2) {
-							// Tap tempo - OR set loop length if seq step held
-							if (~pressedSeqStep.notNil) {
-								var row = ~pressedSeqStep[0];
-								var step = ~pressedSeqStep[1];
-								~sequencer.setLoopLength(row, step + 1);
-								"[Grid] Seq row % loop length: %".format(row, step + 1).postln;
-							} {
-								~tapTempo.();
-							};
-						};
-						if (y == 3) { ~toggleTransport.() };  // Transport start/stop
+					\global, {
+						// Column 0: global controls
+						switch(y,
+							0, { ~toggleMute.() },           // Row 0: Mute
+							1, { /* Gesture start/stop - TODO */ },  // Row 1
+							2, { ~octaveOffset = (~octaveOffset + 1).clip(-2, 2);
+								~applyHarmonicState.(~harmonicDacState);
+								"[Grid] Octave: %".format(~octaveOffset).postln;
+							},  // Row 2: Octave up
+							3, { ~octaveOffset = (~octaveOffset - 1).clip(-2, 2);
+								~applyHarmonicState.(~harmonicDacState);
+								"[Grid] Octave: %".format(~octaveOffset).postln;
+							},  // Row 3: Octave down
+							4, { ~tuningSystem = if(~tuningSystem == \tet) { \just } { \tet };
+								~applyHarmonicState.(~harmonicDacState);
+								"[Grid] Tuning: %".format(~tuningSystem).postln;
+							},  // Row 4: Tuning toggle
+							5, { ~goHome.() }                // Row 5: Home
+						);
 						~updateGridLEDs.();
 					},
-					\paramGrid, {
-						// Cols 1-4, rows 0-3: 16-bit DAC toggle
+					\voiceDac, {
+						// Cols 1-4, rows 0-3: Voice DAC
 						var bitPos = ((y * 4) + (x - 1));
+						~voiceDacState = ~voiceDacState.bitXor(1 << (15 - bitPos));
+						~applyVoiceState.(~voiceDacState);
+						"[Grid] Voice DAC: %".format(~voiceDacState).postln;
 
-						// Toggle bit on current page's DAC state
-						if (~currentPage == 0) {
-							~voiceDacState = ~voiceDacState.bitXor(1 << (15 - bitPos));
-							~applyVoiceState.(~voiceDacState);
-							"[Grid] Voice DAC: % (bit % toggled)".format(~voiceDacState, 15 - bitPos).postln;
-						} {
-							~fxDacState = ~fxDacState.bitXor(1 << (15 - bitPos));
-							~applyFxState.(~fxDacState);
-							"[Grid] FX DAC: % (bit % toggled)".format(~fxDacState, 15 - bitPos).postln;
-						};
-
-						// Record step if recording
 						if (~recordingSlot.notNil) {
-							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState);
+							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState, ~harmonicDacState);
 						};
-
 						~updateGridLEDs.();
 					},
-					\slewGrid, {
-						// Cols 8-11, rows 0-3: slew parameters
-						var col = x - 8;  // 0-3 within slew grid
-						var bitPos = 3 - col;  // bit 3 is leftmost
+					\fxDac, {
+						// Cols 1-4, rows 4-7: FX DAC
+						var bitPos = (((y - 4) * 4) + (x - 1));
+						~fxDacState = ~fxDacState.bitXor(1 << (15 - bitPos));
+						~applyFxState.(~fxDacState);
+						"[Grid] FX DAC: %".format(~fxDacState).postln;
+
+						if (~recordingSlot.notNil) {
+							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState, ~harmonicDacState);
+						};
+						~updateGridLEDs.();
+					},
+					\harmonicDac, {
+						// Cols 5-8, rows 0-3: Harmonic DAC
+						var bitPos = ((y * 4) + (x - 5));
+						~harmonicDacState = ~harmonicDacState.bitXor(1 << (15 - bitPos));
+						~applyHarmonicState.(~harmonicDacState);
+						"[Grid] Harmonic DAC: %".format(~harmonicDacState).postln;
+
+						if (~recordingSlot.notNil) {
+							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState, ~harmonicDacState);
+						};
+						~updateGridLEDs.();
+					},
+					\rootSelect, {
+						// Cols 5-8, rows 4-6: Root selection (12 buttons)
+						var buttonIndex = ((y - 4) * 4) + (x - 5);
+						if (buttonIndex < 12) {
+							~rootIndex = buttonIndex;
+							~applyHarmonicState.(~harmonicDacState);
+							"[Grid] Root: % (%)".format(~rootIndex,
+								["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"][~rootIndex]).postln;
+						};
+						~updateGridLEDs.();
+					},
+					\scaleSelect, {
+						// Cols 5-8, row 7: Scale selection (4-bit)
+						var bitPos = 3 - (x - 5);
+						~scaleIndex = ~scaleIndex.bitXor(1 << bitPos);
+						~scaleIndex = ~scaleIndex.clip(0, 15);
+						~applyHarmonicState.(~harmonicDacState);
+						"[Grid] Scale: % (%)".format(~scaleIndex, HarmonicLUT.scaleNames[~scaleIndex]).postln;
+						~updateGridLEDs.();
+					},
+					\voiceSlew, {
+						// Cols 9-12, rows 0-3: Voice slew
+						var col = x - 9;
+						var bitPos = 3 - col;
 						var bitMask = 1 << bitPos;
 
-						if (y == 0) {
-							~slewTimeBits = ~slewTimeBits.bitXor(bitMask);
-							~applySlew.();
-						};
-						if (y == 1) {
-							~slewCurveBits = ~slewCurveBits.bitXor(bitMask);
-							~applySlew.();
-						};
-						// Rows 2-3: deferred
-
+						if (y == 0) { ~voiceSlewTimeBits = ~voiceSlewTimeBits.bitXor(bitMask) };
+						if (y == 1) { ~voiceSlewCurveBits = ~voiceSlewCurveBits.bitXor(bitMask) };
+						~applyVoiceSlew.();
 						~updateGridLEDs.();
 					},
-					\utilities, {
-						// Cols 5-7, rows 0-3: row operations on param grid
-						// Row 0: bits 15-12, Row 1: bits 11-8, Row 2: bits 7-4, Row 3: bits 3-0
-						var rowShift = (3 - y) * 4;  // bit position of row's LSB
-						var rowMask = 0xF << rowShift;  // mask for this row's 4 bits
-						var dacState = if(~currentPage == 0) { ~voiceDacState } { ~fxDacState };
-						var rowBits = (dacState & rowMask) >> rowShift;  // extract row bits
-						var newRowBits, newDacState;
+					\fxSlew, {
+						// Cols 9-12, rows 4-7: FX slew
+						var col = x - 9;
+						var bitPos = 3 - col;
+						var bitMask = 1 << bitPos;
 
-						// Flash button at medium brightness
-						~grid.led(x, y, GridInterface.ledMedium);
-
-						if (x == 5) {
-							// Clear: zero the row
-							newRowBits = 0;
-							"[Grid] Clear row %".format(y).postln;
-						};
-						if (x == 6) {
-							// Invert: XOR with 0xF
-							newRowBits = rowBits.bitXor(0xF);
-							"[Grid] Invert row %".format(y).postln;
-						};
-						if (x == 7) {
-							// Shift right: rotate within 4 bits
-							newRowBits = ((rowBits >> 1) | ((rowBits & 1) << 3)) & 0xF;
-							"[Grid] Shift row %".format(y).postln;
-						};
-
-						// Apply new row bits to DAC state
-						newDacState = (dacState & rowMask.bitNot) | (newRowBits << rowShift);
-
-						if (~currentPage == 0) {
-							~voiceDacState = newDacState;
-							~applyVoiceState.(~voiceDacState);
-						} {
-							~fxDacState = newDacState;
-							~applyFxState.(~fxDacState);
-						};
-
-						// Record step if recording
-						if (~recordingSlot.notNil) {
-							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState);
-						};
-
+						if (y == 4) { ~fxSlewTimeBits = ~fxSlewTimeBits.bitXor(bitMask) };
+						if (y == 5) { ~fxSlewCurveBits = ~fxSlewCurveBits.bitXor(bitMask) };
+						~applyFxSlew.();
 						~updateGridLEDs.();
 					},
 					\gestures, {
-						// Cols 12-15, rows 0-3: gesture slots
-						var slot = ((y * 4) + (x - 12));
+						// Cols 13-15, rows 0-7: Gesture slots (24 total)
+						// Rows 0-3: voice gestures, Rows 4-7: FX gestures
+						var col = x - 13;
+						var slot = (y * 3) + col;
+						var state = ~gestures.getState(slot);
 
-						// If seq step is held, assign gesture to that step
-						if (~pressedSeqStep.notNil) {
-							var row = ~pressedSeqStep[0];
-							var step = ~pressedSeqStep[1];
-							~sequencer.assignGesture(row, step, slot);
-							"[Grid] Seq row % step %: assigned gesture %".format(row, step, slot).postln;
-						} {
-							// If page button is held, save current state as preset
-							if (~pressedPageButton.notNil) {
-								~gestures.savePreset(slot, ~voiceDacState, ~fxDacState);
-								"[Grid] Saved preset to slot % (voice: %, fx: %)".format(
-									slot, ~voiceDacState, ~fxDacState
-								).postln;
-							} {
-								// Normal gesture interaction
-								var state = ~gestures.getState(slot);
-
-								// State machine
-								switch(state,
-									\empty, {
-										~gestures.startRecording(slot);
-										~recordingSlot = slot;
-										"[Grid] Recording gesture %".format(slot).postln;
-									},
-									\recording, {
-										~gestures.stopRecording(slot);
-										~recordingSlot = nil;
-										"[Grid] Stopped recording gesture %".format(slot).postln;
-										// Auto-play after recording
-										~playGesture.(slot);
-										"[Grid] Playing gesture %".format(slot).postln;
-									},
-									\stopped, {
-										~playGesture.(slot);
-										"[Grid] Playing gesture %".format(slot).postln;
-									},
-									\paused, {
-										~playGesture.(slot);
-										"[Grid] Resumed gesture %".format(slot).postln;
-									},
-									\playing, {
-										// Ignore single tap while playing
-									}
-								);
-							};
-						};
-
-						~updateGridLEDs.();
-					},
-					\sequencer, {
-						// Rows 4-7: sequencer (16 steps × 4 rows)
-						var step = x;
-						var row = y - 4;
-
-						// Track pressed state for hold+tap gesture assignment
-						~pressedSeqStep = [row, step];
-						"[Grid] Seq step pressed: row %, step %".format(row, step).postln;
-
+						switch(state,
+							\empty, {
+								~gestures.startRecording(slot);
+								~recordingSlot = slot;
+								"[Grid] Recording gesture %".format(slot).postln;
+							},
+							\recording, {
+								~gestures.stopRecording(slot);
+								~recordingSlot = nil;
+								"[Grid] Stopped recording %".format(slot).postln;
+								~playGesture.(slot);
+							},
+							\stopped, { ~playGesture.(slot) },
+							\paused, { ~playGesture.(slot) },
+							\playing, { /* ignore */ }
+						);
 						~updateGridLEDs.();
 					}
 				);
-			} {
-				// Key release (state == 0)
-				var zone = ~grid.getZone(x, y);
-				if (zone == \sequencer) {
-					~pressedSeqStep = nil;
-				};
-				if (zone == \navigation) {
-					if ((y == 0) || (y == 1)) {
-						~pressedPageButton = nil;
-					};
-				};
 			};
 		});
 
-		// Set up hold callback for clearing gestures and transport reset
+		// Hold callback
 		~grid.hold({ |x, y|
 			var zone = ~grid.getZone(x, y);
 			if (zone == \gestures) {
-				var slot = ((y * 4) + (x - 12));
+				var col = x - 13;
+				var slot = (y * 3) + col;
 				~gestures.clear(slot);
 				"[Grid] Gesture % cleared".format(slot).postln;
 				~updateGridLEDs.();
 			};
-			if (zone == \navigation) {
-				if (y == 3) {
-					// Hold transport = stop and reset to beginning
-					~stopTransport.();
-					~sequencer.reset;
-					"[Clock] Transport reset to beginning".postln;
-					~updateGridLEDs.();
-				};
-			};
-			// Note: loop length is set via hold step + tap tempo (handled in navigation)
 		});
 
-		// Set up doubleTap callback for pausing gestures and clearing seq steps
+		// Double-tap callback
 		~grid.doubleTap({ |x, y|
 			var zone = ~grid.getZone(x, y);
 			if (zone == \gestures) {
-				var slot = ((y * 4) + (x - 12));
+				var col = x - 13;
+				var slot = (y * 3) + col;
 				~gestures.pause(slot);
 				"[Grid] Gesture % paused".format(slot).postln;
-				~updateGridLEDs.();
-			};
-			if (zone == \sequencer) {
-				var step = x;
-				var row = y - 4;
-				~sequencer.assignGesture(row, step, nil);
-				"[Grid] Seq row % step %: cleared".format(row, step).postln;
 				~updateGridLEDs.();
 			};
 		});
 
 		// LED update function
 		~updateGridLEDs = {
-			// Show current page's DAC state on param grid (cols 1-4)
-			var dacState = if(~currentPage == 0) { ~voiceDacState } { ~fxDacState };
+			// Global column (col 0)
+			~grid.led(0, 0, if(~muted) { GridInterface.ledFull } { GridInterface.ledDim }); // Mute
+			~grid.led(0, 1, GridInterface.ledDim);  // Gesture ctrl
+			~grid.led(0, 2, GridInterface.ledDim);  // Oct up
+			~grid.led(0, 3, GridInterface.ledDim);  // Oct down
+			~grid.led(0, 4, if(~tuningSystem == \just) { GridInterface.ledFull } { GridInterface.ledDim }); // Tuning
+			~grid.led(0, 5, GridInterface.ledDim);  // Home
+			~grid.led(0, 6, GridInterface.ledOff);  // Reserved
+			~grid.led(0, 7, GridInterface.ledOff);  // Reserved
 
+			// Voice DAC (cols 1-4, rows 0-3)
 			4.do { |y| 4.do { |x|
 				var bitPos = ((y * 4) + x);
-				var isOn = (dacState >> (15 - bitPos)) & 1;
+				var isOn = (~voiceDacState >> (15 - bitPos)) & 1;
 				~grid.led(x + 1, y, isOn * GridInterface.ledFull);
 			}};
 
-			// Utilities (cols 5-7) - dim static indicators
-			4.do { |row|
-				~grid.led(5, row, GridInterface.ledDim);  // Clear
-				~grid.led(6, row, GridInterface.ledDim);  // Invert
-				~grid.led(7, row, GridInterface.ledDim);  // Shift
-			};
+			// FX DAC (cols 1-4, rows 4-7)
+			4.do { |y| 4.do { |x|
+				var bitPos = ((y * 4) + x);
+				var isOn = (~fxDacState >> (15 - bitPos)) & 1;
+				~grid.led(x + 1, y + 4, isOn * GridInterface.ledFull);
+			}};
 
-			// Slew grid (cols 8-11)
+			// Harmonic DAC (cols 5-8, rows 0-3)
+			4.do { |y| 4.do { |x|
+				var bitPos = ((y * 4) + x);
+				var isOn = (~harmonicDacState >> (15 - bitPos)) & 1;
+				~grid.led(x + 5, y, isOn * GridInterface.ledFull);
+			}};
+
+			// Root select (cols 5-8, rows 4-6) - 12 buttons
+			3.do { |row| 4.do { |col|
+				var buttonIndex = (row * 4) + col;
+				if (buttonIndex < 12) {
+					~grid.led(col + 5, row + 4,
+						if(buttonIndex == ~rootIndex) { GridInterface.ledFull } { GridInterface.ledDim });
+				} {
+					~grid.led(col + 5, row + 4, GridInterface.ledOff);
+				};
+			}};
+
+			// Scale select (cols 5-8, row 7)
 			4.do { |col|
 				var bitPos = 3 - col;
-				// Row 0: Time
-				~grid.led(col + 8, 0, ((~slewTimeBits >> bitPos) & 1) * GridInterface.ledFull);
-				// Row 1: Curve
-				~grid.led(col + 8, 1, ((~slewCurveBits >> bitPos) & 1) * GridInterface.ledFull);
-				// Row 2-3: dim (deferred)
-				~grid.led(col + 8, 2, GridInterface.ledDim);
-				~grid.led(col + 8, 3, GridInterface.ledDim);
+				var isOn = (~scaleIndex >> bitPos) & 1;
+				~grid.led(col + 5, 7, isOn * GridInterface.ledFull);
 			};
 
-			// Gesture slots (cols 12-15, rows 0-3)
-			// Playing slots handled by breath task, flashing slots skipped
-			4.do { |row|
-				4.do { |col|
-					var slot = (row * 4) + col;
-					// Skip if slot is currently flashing
-					if (~flashingSlots.includes(slot).not) {
-						var state = ~gestures.getState(slot);
-						if (state != \playing) {
-							var brightness;
-							var isPreset = ~gestures.isPreset(slot);
-
-							// Active preset (manual) gets full brightness
-							if (isPreset && ~activePreset.notNil && (~activePreset == slot)) {
-								brightness = GridInterface.ledFull;
-							} {
-								brightness = switch(state,
-									\empty, { GridInterface.ledOff },
-									\recording, { GridInterface.ledFull },
-									\stopped, {
-										// Presets: dim unless active; Gestures: medium
-										if (isPreset) { GridInterface.ledDim } { GridInterface.ledMedium }
-									},
-									\paused, { GridInterface.ledBright },
-									{ GridInterface.ledDim }
-								);
-							};
-							~grid.led(col + 12, row, brightness);
-						};
-					};
-				};
+			// Voice slew (cols 9-12, rows 0-3)
+			4.do { |col|
+				var bitPos = 3 - col;
+				~grid.led(col + 9, 0, ((~voiceSlewTimeBits >> bitPos) & 1) * GridInterface.ledFull);
+				~grid.led(col + 9, 1, ((~voiceSlewCurveBits >> bitPos) & 1) * GridInterface.ledFull);
+				~grid.led(col + 9, 2, GridInterface.ledDim);  // Reserved
+				~grid.led(col + 9, 3, GridInterface.ledDim);  // Reserved
 			};
 
-			// Page indicator (row 0-1)
-			~grid.led(0, 0, if(~currentPage == 0) { GridInterface.ledFull } { GridInterface.ledDim });
-			~grid.led(0, 1, if(~currentPage == 1) { GridInterface.ledFull } { GridInterface.ledDim });
+			// FX slew (cols 9-12, rows 4-7)
+			4.do { |col|
+				var bitPos = 3 - col;
+				~grid.led(col + 9, 4, ((~fxSlewTimeBits >> bitPos) & 1) * GridInterface.ledFull);
+				~grid.led(col + 9, 5, ((~fxSlewCurveBits >> bitPos) & 1) * GridInterface.ledFull);
+				~grid.led(col + 9, 6, GridInterface.ledDim);  // Reserved
+				~grid.led(col + 9, 7, GridInterface.ledDim);  // Reserved
+			};
 
-			// Tap tempo (row 2) - dim
-			~grid.led(0, 2, GridInterface.ledDim);
-
-			// Transport (row 3) - bright when running
-			~grid.led(0, 3, if(~transport == \running) { GridInterface.ledFull } { GridInterface.ledDim });
-
-			// Sequencer (rows 4-7, cols 0-15)
-			4.do { |row|
-				var currentStep = ~sequencer.getStepForRow(row);
-				var loopLen = ~sequencer.loopLengths[row];
-
-				16.do { |step|
-					var brightness;
-					if (step >= loopLen) {
-						// Beyond loop length - off
-						brightness = GridInterface.ledOff;
-					} {
-						if (step == currentStep) {
-							// Current step - bright
-							brightness = GridInterface.ledFull;
-						} {
-							if (~sequencer.hasGestureAt(row, step)) {
-								// Has gesture - medium
-								brightness = GridInterface.ledMedium;
-							} {
-								// Empty step - dim
-								brightness = GridInterface.ledDim;
-							};
-						};
+			// Gesture slots (cols 13-15, rows 0-7)
+			8.do { |row| 3.do { |col|
+				var slot = (row * 3) + col;
+				if (~flashingSlots.includes(slot).not) {
+					var state = ~gestures.getState(slot);
+					if (state != \playing) {
+						var brightness = switch(state,
+							\empty, { GridInterface.ledOff },
+							\recording, { GridInterface.ledFull },
+							\stopped, { GridInterface.ledMedium },
+							\paused, { GridInterface.ledBright },
+							{ GridInterface.ledDim }
+						);
+						~grid.led(col + 13, row, brightness);
 					};
-					~grid.led(step, row + 4, brightness);
 				};
+			}};
+		};
+
+		// Play gesture helper
+		~playGesture = { |slot|
+			if (~gestures.isPreset(slot)) {
+				var preset = ~gestures.getPreset(slot);
+				if (preset.notNil) {
+					~voiceDacState = preset[0];
+					~fxDacState = preset[1];
+					~harmonicDacState = preset[2] ? ~harmonicDacState;
+					~applyVoiceState.(~voiceDacState);
+					~applyFxState.(~fxDacState);
+					~applyHarmonicState.(~harmonicDacState);
+					~updateGridLEDs.();
+				};
+			} {
+				~gestures.play(slot, { |voiceState, fxState, harmonicState|
+					~voiceDacState = voiceState;
+					~fxDacState = fxState;
+					~harmonicDacState = harmonicState ? ~harmonicDacState;
+					~applyVoiceState.(voiceState);
+					~applyFxState.(fxState);
+					~applyHarmonicState.(~harmonicDacState);
+					~updateGridLEDs.();
+				});
 			};
 		};
 
-		// Gesture LED breathing task
+		// Gesture breathing task
 		~gestureBreathTask = Routine({
 			var phase = 0;
 			loop {
-				4.do { |row|
-					4.do { |col|
-						var slot = (row * 4) + col;
-						if (~gestures.getState(slot) == \playing) {
-							// Breathe between ledMedium (8) and ledFull (15)
-							var breath = (phase.sin + 1) / 2;  // 0-1
-							var brightness = (GridInterface.ledMedium + (breath * 7)).asInteger;
-							~grid.led(col + 12, row, brightness);
-						};
+				8.do { |row| 3.do { |col|
+					var slot = (row * 3) + col;
+					if (~gestures.getState(slot) == \playing) {
+						var breath = (phase.sin + 1) / 2;
+						var brightness = (GridInterface.ledMedium + (breath * 7)).asInteger;
+						~grid.led(col + 13, row, brightness);
 					};
-				};
-				phase = phase + 0.15;  // ~2 second cycle at 30fps
+				}};
+				phase = phase + 0.15;
 				0.033.wait;
 			};
 		}).play;
 
-		// Initial LED state
 		~updateGridLEDs.();
-
 		"[Griddlecake] Grid connected".postln;
 	};
 
@@ -1117,18 +728,6 @@ s.waitForBoot({
 			~gestureBreathTask.stop;
 			~gestureBreathTask = nil;
 		};
-		if (~clockRoutine.notNil) {
-			~clockRoutine.stop;
-			~clockRoutine = nil;
-		};
-		// Stop all row playback routines
-		4.do { |row|
-			if (~rowPlaybackRoutines[row].notNil) {
-				~rowPlaybackRoutines[row].stop;
-				~rowPlaybackRoutines[row] = nil;
-			};
-		};
-		~transport = \stopped;
 		if (~grid.notNil) {
 			~grid.free;
 			~grid = nil;
@@ -1141,45 +740,26 @@ s.waitForBoot({
 	// ========================================
 
 	"[Griddlecake] ========================================".postln;
-	"[Griddlecake] BOOT COMPLETE".postln;
+	"[Griddlecake] v0.1.0b MUSIC MODE - BOOT COMPLETE".postln;
 	"[Griddlecake] ========================================".postln;
 	"[Griddlecake] LUT seed: %".format(~lutSeed).postln;
-	"[Griddlecake] Voice index: %".format(~voiceIndex).postln;
-	"[Griddlecake] FX index: %".format(~fxIndex).postln;
-	"[Griddlecake] Drone synth: %".format(~drone).postln;
 	"[Griddlecake] ========================================".postln;
-	"[Griddlecake] Available functions:".postln;
-	"[Griddlecake]   ~applyVoiceState.(index)       - Apply voice state".postln;
-	"[Griddlecake]   ~applyFxState.(index)          - Apply FX state".postln;
-	"[Griddlecake]   ~applyFullState.(voice, fx)    - Apply both".postln;
-	"[Griddlecake]   ~setVoiceState.(index, time)   - Voice with slew".postln;
-	"[Griddlecake]   ~setFxState.(index, time)      - FX with slew".postln;
-	"[Griddlecake]   ~testVoice.()                  - Test voice states".postln;
-	"[Griddlecake]   ~testFx.()                     - Test FX states".postln;
-	"[Griddlecake]   ~randomize.()                  - Randomize both".postln;
-	"[Griddlecake]   ~showSeed.()                   - Show LUT seed".postln;
-	"[Griddlecake]   ~setSlew.(time, curve)         - Set slew time/curve".postln;
-	"[Griddlecake]   ~setCurve.(curve)              - Set slew curve (-8 to 8)".postln;
-	"[Griddlecake]   ~eq.(low, mid, high)           - Set EQ gains (dB)".postln;
-	"[Griddlecake]   ~eqFreqs.(low, mid, high)      - Set EQ freqs (Hz)".postln;
-	"[Griddlecake]   ~eqMidQ.(q)                    - Set mid Q".postln;
-	"[Griddlecake]   ~eqBypass.()                   - Bypass EQ".postln;
-	"[Griddlecake]   ~comp.(th, rat, atk, rel, mk)  - Set compressor".postln;
-	"[Griddlecake]   ~compBypass.()                 - Bypass compressor".postln;
+	"[Griddlecake] Functions:".postln;
+	"[Griddlecake]   ~applyFullState.()         - Apply all states".postln;
+	"[Griddlecake]   ~randomize.()              - Randomize all".postln;
+	"[Griddlecake]   ~goHome.()                 - Reset to home".postln;
+	"[Griddlecake]   ~showSeed.()               - Show current state".postln;
+	"[Griddlecake]   ~testVoice.()              - Test voice states".postln;
+	"[Griddlecake]   ~testHarmonic.()           - Test harmonic states".postln;
+	"[Griddlecake]   ~eq.(low, mid, high)       - EQ (dB)".postln;
+	"[Griddlecake]   ~comp.(th, rat, atk, rel, mk)".postln;
 	"[Griddlecake] Grid:".postln;
-	"[Griddlecake]   ~connectGrid.()               - Connect to oscgrid".postln;
-	"[Griddlecake]   ~disconnectGrid.()            - Disconnect grid".postln;
-	"[Griddlecake]   ~gridIP = \"x.x.x.x\"           - Set iPad IP".postln;
-	"[Griddlecake] Clock/Transport:".postln;
-	"[Griddlecake]   ~tapTempo.()                  - Register tap for tempo".postln;
-	"[Griddlecake]   ~startTransport.()            - Start sequencer".postln;
-	"[Griddlecake]   ~stopTransport.()             - Stop sequencer".postln;
-	"[Griddlecake]   ~toggleTransport.()           - Toggle sequencer".postln;
-	"[Griddlecake]   ~bpm                          - Current BPM (%)".format(~bpm).postln;
+	"[Griddlecake]   ~connectGrid.()            - Connect".postln;
+	"[Griddlecake]   ~disconnectGrid.()         - Disconnect".postln;
 	"[Griddlecake] ========================================".postln;
 
 	// Apply initial state
-	~applyFullState.(0, 0);
+	~goHome.();
 });
 
 )

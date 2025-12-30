@@ -162,13 +162,17 @@ GridInterface {
 	}
 
 	getZone { |x, y|
+		// Music Mode layout v0.1.0b
 		^case
-		{ y >= 4 } { \sequencer }  // Check sequencer FIRST (all 16 cols, rows 4-7)
-		{ x == 0 } { \navigation }
-		{ (x >= 1) && (x <= 4) && (y <= 3) } { \paramGrid }
-		{ (x >= 5) && (x <= 7) && (y <= 3) } { \utilities }
-		{ (x >= 8) && (x <= 11) && (y <= 3) } { \slewGrid }
-		{ (x >= 12) && (y <= 3) } { \gestures }
+		{ x == 0 } { \global }
+		{ (x >= 1) && (x <= 4) && (y <= 3) } { \voiceDac }
+		{ (x >= 1) && (x <= 4) && (y >= 4) } { \fxDac }
+		{ (x >= 5) && (x <= 8) && (y <= 3) } { \harmonicDac }
+		{ (x >= 5) && (x <= 8) && (y >= 4) && (y <= 6) } { \rootSelect }
+		{ (x >= 5) && (x <= 8) && (y == 7) } { \scaleSelect }
+		{ (x >= 9) && (x <= 12) && (y <= 3) } { \voiceSlew }
+		{ (x >= 9) && (x <= 12) && (y >= 4) } { \fxSlew }
+		{ x >= 13 } { \gestures }
 		{ \unknown };
 	}
 

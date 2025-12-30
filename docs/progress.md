@@ -8,39 +8,80 @@ See [Implementation](implementation.md) for the high-level roadmap.
 
 ## Current Status
 
-**Phase:** Phase 5 - Polish (in progress)
+**Branch:** v0.1.0b_musicMode
 
-**Completed:**
-- drone.scd SynthDef (39 LUT params + EQ/comp + VarLag slew with curve)
-- Split LUT: Voice (20 params) + FX (19 params)
-- main.scd boot file with full state management
-- EQ and compressor (SClang control only)
-- VarLag.kr for smooth morphing with curve shaping
-- True parameter value interpolation (not index traversal)
-- True 8-bit audio-rate bitwise ops (AND, OR, XOR, GLITCH)
-- Weighted frequency distribution in LUT (bias toward low frequencies)
-- Separate voice/FX DAC states with independent LED display
-- Slew grid: time (row 0) + curve (row 1) with 4-bit toggles
-- Utilities: clear/invert/shift row operations on param grid
-- GestureRecorder.sc class (16 slots, state machine, timestamped capture)
-- Gesture zone handler with hold/double-tap detection in GridInterface
-- Gesture recording wired to param/utility state changes
-- Gesture playback with timing restoration
-- LED feedback for gesture slots
-- Sequencer.sc class (4 rows × 16 steps, per-step gesture slots, blending)
-- Clock & Transport (TempoClock, tap tempo, start/stop controls)
-- Sequencer grid handler (rows 4-7) with gesture assignment and loop control
-- Clock-driven gesture playback with blended voice/FX states
-- Preset/Gesture separation with tagged types
-- Per-step gesture slot assignment with visual LED feedback
-- Parameter blending via arithmetic mean across active sequencer rows
+**Phase:** Music Mode Implementation (in progress)
+
+**v0.1.0b Changes:**
+- 3-oscillator voice architecture with harmonic LUT control
+- 16 musical combo modes (replaced bitwise ops with musical combinations)
+- HarmonicLUT.sc class for scale-aware chord voicing
+- Root (12 chromatic) and Scale (16 modes) selection
+- 12TET / Just Intonation toggle
+- Removed sequencer (gesture/preset-focused workflow)
+- New grid layout with voice/FX DACs on rows 0-3/4-7
+- Separate voice and FX slew controls
+- 24 gesture slots (split: rows 0-3 voice, rows 4-7 FX)
 
 **Next Steps:**
-1. Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
+1. Test and refine harmonic system
+2. Implement gesture start/stop control
+3. Add save/load for state persistence
 
 ---
 
 ## Session Log
+
+### 2025-12-29 (Session 7 - Music Mode)
+
+**Branch:** `v0.1.0b_musicMode`
+
+**Major Architecture Change: Music Mode**
+
+Transformed from noise-focused chaos drone to musically-constrained chord drone.
+
+**Voice Architecture:**
+- Added 3rd oscillator (osc3_freq, osc3_wave, osc3_pw, osc3_track, osc3_ratio)
+- Added `detune` parameter for UNISON mode
+- Redesigned combo modes: 16 musical combinations replacing 9 harsh bitwise ops
+  - CHORD, OSC1-3, RING12, RING123, FM12, FM123
+  - UNISON, STACK, AM, PWM, MIN3, MAX3, FOLD, NOISE
+
+**Harmonic LUT System:**
+- Created `classes/HarmonicLUT.sc`
+- 65536 entries with scale degrees for 3 oscillators
+- Osc1 weighted toward root (degree 0) with pow(2.0) bias
+- 16 scales (Major, Minor, modes, pentatonic, blues, whole tone, etc.)
+- 12 chromatic roots (mutually exclusive selection)
+- 12TET and Just Intonation tuning systems
+- Octave offset control (-2 to +2)
+
+**Voice LUT Refactor:**
+- Removed pitch params (osc1_freq, osc2_freq) - now from HarmonicLUT
+- Added osc3 params (wave, pw, track, ratio)
+- 23 params total (non-pitch only)
+
+**Grid Layout Overhaul:**
+- Removed sequencer (gesture/preset-focused workflow)
+- New zones:
+  - Col 0: Global (mute, octave, tuning, home)
+  - Cols 1-4, rows 0-3: Voice DAC (16-bit)
+  - Cols 1-4, rows 4-7: FX DAC (16-bit)
+  - Cols 5-8, rows 0-3: Harmonic DAC (16-bit)
+  - Cols 5-8, rows 4-6: Root select (12 buttons)
+  - Cols 5-8, row 7: Scale select (4-bit)
+  - Cols 9-12, rows 0-3: Voice slew
+  - Cols 9-12, rows 4-7: FX slew
+  - Cols 13-15, all rows: Gestures (24 slots)
+
+**Files Modified:**
+- `synthdefs/drone.scd` - 3-osc, 16 combo modes, detune
+- `classes/HarmonicLUT.sc` - NEW
+- `classes/GridInterface.sc` - new zone detection
+- `main.scd` - complete refactor for music mode
+- `docs/grid_layout.md` - new layout documentation
+
+---
 
 ### 2025-12-29 (Session 6)
 
