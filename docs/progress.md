@@ -34,13 +34,68 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Preset/Gesture separation with tagged types
 - Per-step gesture slot assignment with visual LED feedback
 - Parameter blending via arithmetic mean across active sequencer rows
+- Engine abstraction layer (spec + implementation)
+- Feedback Network engine SynthDef (4 cross-feeding paths)
+- Engine registry and hot-swap architecture
+- Per-engine LUT generators with caching
+
+**In Progress:**
+- Engine select page (hold s+a) - logic works but LED display not updating
+- Feedback engine hot-swap - synth node timing issue
 
 **Next Steps:**
-1. Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
+1. Fix engine page LED display (grid not visually updating)
+2. Fix engine switch synth node timing (node freed before new synth ready)
+3. Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
 
 ---
 
 ## Session Log
+
+### 2025-12-30 (Session 7)
+
+**Engine Abstraction Layer:**
+- Created `docs/engine_abstraction.md` specification
+- Fixed 39-param structure across all engines (20 voice + 19 FX)
+- Each engine .scd returns spec dictionary with: key, name, synthDef, voiceParams, fxParams, lutGenerator
+- LUT caching per engine+seed to avoid regeneration delay
+- Engine hot-swap with crossfade (gate envelope, doneAction:2)
+
+**Feedback Network Engine (`synthdefs/feedback.scd`):**
+- 4 cross-feeding filter+delay paths with LocalIn/LocalOut
+- Exciter types: noise, dust, impulse, gated sine
+- 20 voice params: per-path gain/freq/res/delay + global fb/exciter/cross
+- Shared FX chain (same as drone)
+- LUT weighting: bias toward low frequencies, moderate resonance
+
+**main.scd Integration:**
+- Engine registry: `~engines` Dictionary, `~engineOrder` array
+- `~loadEngine.("filename.scd")` loads spec from file
+- `~getLuts.(engineKey)` generates/caches LUTs using engine's lutGenerator
+- `~switchEngine.(key)` with crossfade and synth replacement
+- `~synth` as primary reference, `~drone` as alias for compatibility
+- Engine page: `~onEnginePage` flag, `~handleEnginePage` handler
+- Entry via hold s+a (simultaneous page button hold detection)
+
+**drone.scd Updates:**
+- Added `gate=1` param for crossfade envelope
+- Returns engine spec dictionary at end of file
+- voiceParams/fxParams specs with idx, name, min, max, curve, default
+- lutGenerator function with Cyclebox-style weighting
+
+**Bug Fixes:**
+- SC syntax: var declarations must precede statements in functions
+- Replaced Float32Array with regular arrays (not standard SC class)
+- Moved ~enterEnginePage/~exitEnginePage inside ~connectGrid (needed ~grid access)
+- Removed direct dirty flag access (read-only in GridInterface)
+- Added 300ms debounce after engine page entry
+- Removed output_level from voiceParamNames (was getting set to 0 from reserved slot)
+
+**Known Issues:**
+- Engine select page: logic works but grid LEDs not visually updating
+- Engine switch: "Node 1000 not found" - old synth freed before new one ready, ~applyVoiceState called on freed node
+
+---
 
 ### 2025-12-29 (Session 6)
 
