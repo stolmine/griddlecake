@@ -1020,8 +1020,7 @@ s.waitForBoot({
 
 				~grid.led(x, 0, brightness);
 			};
-
-			~grid.dirty = true;  // Force refresh
+			// Note: ~grid.led() already sets dirty flag internally
 		};
 
 		// Enter engine page
