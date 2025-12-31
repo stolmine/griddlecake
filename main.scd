@@ -13,18 +13,40 @@
 s.waitForBoot({
 
 	// ========================================
-	// LOAD SYNTHDEF
+	// LOAD ENGINES
 	// ========================================
 
-	"[Griddlecake] Loading drone SynthDef...".postln;
-	(thisProcess.nowExecutingPath.dirname +/+ "synthdefs/drone.scd").load;
+	"[Griddlecake] Loading engines...".postln;
+
+	// Engine registry
+	~engines = Dictionary.new;
+	~engineOrder = [];  // Ordered list of engine keys for grid display
+
+	// Load engine files - each returns a spec dictionary
+	~loadEngine = { |filename|
+		var path = thisProcess.nowExecutingPath.dirname +/+ "synthdefs" +/+ filename;
+		var spec = path.load;
+		if (spec.notNil && spec[\key].notNil) {
+			~engines[spec[\key]] = spec;
+			~engineOrder = ~engineOrder.add(spec[\key]);
+			"[Griddlecake]   Loaded engine: % (%)".format(spec[\name], spec[\key]).postln;
+		} {
+			"[Griddlecake]   WARNING: Failed to load engine from %".format(filename).warn;
+		};
+	};
+
+	// Load all engines
+	~loadEngine.("drone.scd");
+	~loadEngine.("feedback.scd");
 	s.sync;
+
+	// Set initial engine
+	~currentEngine = \drone;
+	"[Griddlecake] Active engine: %".format(~engines[~currentEngine][\name]).postln;
 
 	// ========================================
 	// INITIALIZE LUT
 	// ========================================
-
-	"[Griddlecake] Generating Voice LUT (65536 × 20 params)...".postln;
 
 	// Use Date.seed unless ~useSeed is explicitly set before loading
 	// To reuse a seed: ~useSeed = 12345; then load main.scd
@@ -37,122 +59,36 @@ s.waitForBoot({
 		"[Griddlecake] Generated new seed: %".format(~lutSeed).postln;
 	};
 
-	// Generate 65536 randomized voice parameter sets
-	~voiceLut = Array.fill(65536, { |i|
-		if (i == 0) {
-			// State 0: Simple 55Hz sine (home base)
-			[
-				55,    // osc1_freq - 55Hz (A1)
-				0,     // osc1_wave - sine
-				0.5,   // osc1_pw
-				55,    // osc2_freq
-				0,     // osc2_wave - sine
-				0.5,   // osc2_pw
-				0,     // osc2_track - free
-				1,     // osc2_ratio
-				0,     // fm_amount - none
-				0,     // combo_mode - OSC1 only
-				0,     // combo_mix - dry osc1
-				0,     // noise_type
-				0,     // noise_level - none
-				0,     // noise_to_osc1 - none
-				0,     // noise_to_osc2 - none
-				20000, // filter_freq - wide open
-				0,     // filter_res - none
-				0,     // filter_type - lowpass
-				0,     // filter_track - none
-				0.5    // output_level
-			]
-		} {
-			thisThread.randSeed = ~lutSeed + i; // Deterministic per-index
-			[
-				// Oscillators - pow(1.8) moderate bias toward low frequencies
-				// ~55% of values fall in bottom third of range
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // osc1_freq
-				rrand(0, 3).round,        // osc1_wave
-				rrand(0.0, 1.0),          // osc1_pw
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // osc2_freq
-				rrand(0, 3).round,        // osc2_wave
-				rrand(0.0, 1.0),          // osc2_pw
-				rrand(0.0, 1.0),          // osc2_track
-				1.0.rand.pow(1.2).linexp(0, 1, 0.25, 4.0), // osc2_ratio (gentle low bias)
-				rrand(0.0, 1.0),          // fm_amount
-				rrand(0, 8).round,        // combo_mode
-				rrand(0.0, 1.0),          // combo_mix
-				rrand(0, 2).round,        // noise_type
-				rrand(0.0, 1.0),          // noise_level
-				rrand(0.0, 1.0),          // noise_to_osc1
-				rrand(0.0, 1.0),          // noise_to_osc2
-				// Filter - pow(1.5) gentle low bias
-				1.0.rand.pow(1.5).linexp(0, 1, 20, 20000), // filter_freq
-				rrand(0.0, 0.99),         // filter_res
-				rrand(0, 3).round,        // filter_type
-				rrand(0.0, 1.0),          // filter_track
-				rrand(0.3, 0.7)           // output_level
-			]
-		}
-	});
+	// LUT cache (per engine + seed)
+	~lutCache = Dictionary.new;
 
-	"[Griddlecake] Voice LUT complete (%.2f MB)".format((65536 * 20 * 4) / 1048576).postln;
+	// Get or generate LUTs for an engine
+	~getLuts = { |engineKey|
+		var cacheKey = (engineKey ++ "_" ++ ~lutSeed).asSymbol;
+		var engine = ~engines[engineKey];
 
-	"[Griddlecake] Generating FX LUT (65536 × 19 params)...".postln;
+		if (~lutCache[cacheKey].isNil) {
+			"[Griddlecake] Generating LUTs for % (seed %)...".format(engineKey, ~lutSeed).postln;
+			~lutCache[cacheKey] = engine[\lutGenerator].(~lutSeed);
+			"[Griddlecake] LUT generation complete".postln;
+		};
 
-	// Generate 65536 randomized FX parameter sets
-	~fxLut = Array.fill(65536, { |i|
-		if (i == 0) {
-			// State 0: 100% dry (all FX bypassed)
-			[
-				16,    // lofi_bits - full resolution
-				48000, // lofi_rate - full sample rate
-				0,     // lofi_mix - dry
-				440,   // ring_freq
-				0,     // ring_wave
-				0,     // ring_mix - dry
-				440,   // comb_freq
-				0.5,   // comb_decay
-				0,     // comb_mix - dry
-				250,   // delay_time
-				0,     // delay_fb
-				0,     // delay_mix - dry
-				0.5,   // clouds_pos
-				0.5,   // clouds_size
-				0.5,   // clouds_dens
-				0.5,   // clouds_tex
-				0,     // clouds_mode
-				0,     // clouds_rvb - no reverb
-				0      // clouds_mix - dry
-			]
-		} {
-			thisThread.randSeed = ~lutSeed + 65536 + i; // Different seed offset
-			[
-				// Lo-Fi
-				rrand(1, 16).round,       // lofi_bits
-				1.0.rand.pow(1.5).linexp(0, 1, 100, 48000),  // lofi_rate (gentle low bias)
-				rrand(0.0, 1.0),          // lofi_mix
-				// Ring mod - moderate low bias
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 2000),  // ring_freq
-				rrand(0, 3).round,        // ring_wave
-				rrand(0.0, 1.0),          // ring_mix
-				// Comb - moderate low bias
-				1.0.rand.pow(1.8).linexp(0, 1, 20, 5000),  // comb_freq
-				exprand(0.01, 5.0),       // comb_decay
-				rrand(0.0, 1.0),          // comb_mix
-				// Delay
-				1.0.rand.pow(1.2).linexp(0, 1, 1, 2000),   // delay_time (ms)
-				rrand(0.0, 0.99),         // delay_fb
-				rrand(0.0, 1.0),          // delay_mix
-				rrand(0.0, 1.0),          // clouds_pos
-				rrand(0.0, 1.0),          // clouds_size
-				rrand(0.0, 1.0),          // clouds_dens
-				rrand(0.0, 1.0),          // clouds_tex
-				rrand(0, 3).round,        // clouds_mode
-				rrand(0.0, 1.0),          // clouds_rvb
-				rrand(0.0, 1.0)           // clouds_mix
-			]
-		}
-	});
+		~lutCache[cacheKey]
+	};
 
-	"[Griddlecake] FX LUT complete (%.2f MB)".format((65536 * 19 * 4) / 1048576).postln;
+	// Clear LUT cache (call when seed changes)
+	~clearLutCache = {
+		~lutCache.clear;
+		"[Griddlecake] LUT cache cleared".postln;
+	};
+
+	// Generate initial LUTs for current engine
+	~luts = ~getLuts.(~currentEngine);
+	~voiceLut = ~luts[\voice];
+	~fxLut = ~luts[\fx];
+
+	"[Griddlecake] Voice LUT: % entries".format(~voiceLut.size).postln;
+	"[Griddlecake] FX LUT: % entries".format(~fxLut.size).postln;
 
 	// ========================================
 	// PARAMETER NAMES
@@ -193,12 +129,82 @@ s.waitForBoot({
 	];
 
 	// ========================================
-	// CREATE DRONE SYNTH
+	// CREATE SYNTH
 	// ========================================
 
-	"[Griddlecake] Creating drone synth...".postln;
-	~drone = Synth(\chaosDrone);
+	"[Griddlecake] Creating synth (%)...".format(~currentEngine).postln;
+	~synth = Synth(~engines[~currentEngine][\synthDef]);
 	s.sync;
+
+	// Alias for backwards compatibility
+	~drone = ~synth;
+
+	// ========================================
+	// ENGINE SWITCHING
+	// ========================================
+
+	// Engine page state
+	~onEnginePage = false;
+	~pageButtonStates = (s: false, a: false);  // Track page button holds
+
+	// Switch to a different engine
+	~switchEngine = { |newEngineKey|
+		var engine = ~engines[newEngineKey];
+
+		if (engine.isNil) {
+			"[Griddlecake] Unknown engine: %".format(newEngineKey).warn;
+		} {
+			if (engine[\implemented].not) {
+				"[Griddlecake] Engine not implemented: %".format(newEngineKey).warn;
+			} {
+				var oldSynth = ~synth;
+				var luts;
+
+				"[Griddlecake] Switching to engine: %".format(engine[\name]).postln;
+
+				// Get or generate LUTs for new engine
+				luts = ~getLuts.(newEngineKey);
+				~voiceLut = luts[\voice];
+				~fxLut = luts[\fx];
+
+				// Fade out old synth
+				oldSynth.set(\gate, 0);
+
+				// Boot new synth after fade
+				AppClock.sched(0.12, {
+					~synth = Synth(engine[\synthDef], [
+						\output_level, 0.5,
+						\slew_time, ~getSlewTime.(),
+						\slew_curve, ~getSlewCurve.(),
+						\gate, 1
+					]);
+					~drone = ~synth;  // Update alias
+					~currentEngine = newEngineKey;
+
+					// Apply current DAC state to new engine
+					~applyVoiceState.(~voiceDacState);
+					~applyFxState.(~fxDacState);
+
+					"[Griddlecake] Engine switch complete: %".format(engine[\name]).postln;
+					nil
+				});
+			};
+		};
+	};
+
+	// Enter engine page
+	~enterEnginePage = {
+		~onEnginePage = true;
+		~updateEnginePageLEDs.();
+		"[Griddlecake] Entered engine select page".postln;
+	};
+
+	// Exit engine page
+	~exitEnginePage = {
+		~onEnginePage = false;
+		~updateGridLEDs.();
+		"[Griddlecake] Returned to main UI".postln;
+	};
 
 	// ========================================
 	// GESTURE RECORDER
@@ -751,20 +757,37 @@ s.waitForBoot({
 		~grid.key({ |x, y, state|
 			var zone = ~grid.getZone(x, y);
 
-			if (state == 1) {
-				switch(zone,
-					\navigation, {
-						// Column 0: page select + clock controls
-						if (y == 0) {
-							~currentPage = 0;
-							~pressedPageButton = 0;  // Track for preset saving
-							"[Grid] Page: Synth".postln;
-						};
-						if (y == 1) {
-							~currentPage = 1;
-							~pressedPageButton = 1;  // Track for preset saving
-							"[Grid] Page: FX".postln;
-						};
+			// Route to engine page handler if active
+			if (~onEnginePage) {
+				~handleEnginePage.(x, y, state);
+			} {
+				// Normal main UI handling
+				if (state == 1) {
+					switch(zone,
+						\navigation, {
+							// Column 0: page select + clock controls
+							if (y == 0) {
+								~currentPage = 0;
+								~pressedPageButton = 0;  // Track for preset saving
+								~pageButtonStates[\s] = true;
+								// Check for engine page entry (both held)
+								if (~pageButtonStates[\a]) {
+									~enterEnginePage.();
+								} {
+									"[Grid] Page: Synth".postln;
+								};
+							};
+							if (y == 1) {
+								~currentPage = 1;
+								~pressedPageButton = 1;  // Track for preset saving
+								~pageButtonStates[\a] = true;
+								// Check for engine page entry (both held)
+								if (~pageButtonStates[\s]) {
+									~enterEnginePage.();
+								} {
+									"[Grid] Page: FX".postln;
+								};
+							};
 						if (y == 2) {
 							// Tap tempo - OR set loop length if seq step held
 							if (~pressedSeqStep.notNil) {
@@ -930,18 +953,24 @@ s.waitForBoot({
 						~updateGridLEDs.();
 					}
 				);
-			} {
-				// Key release (state == 0)
-				var zone = ~grid.getZone(x, y);
-				if (zone == \sequencer) {
-					~pressedSeqStep = nil;
-				};
-				if (zone == \navigation) {
-					if ((y == 0) || (y == 1)) {
-						~pressedPageButton = nil;
+				} {
+					// Key release (state == 0)
+					var zone = ~grid.getZone(x, y);
+					if (zone == \sequencer) {
+						~pressedSeqStep = nil;
+					};
+					if (zone == \navigation) {
+						if (y == 0) {
+							~pressedPageButton = nil;
+							~pageButtonStates[\s] = false;
+						};
+						if (y == 1) {
+							~pressedPageButton = nil;
+							~pageButtonStates[\a] = false;
+						};
 					};
 				};
-			};
+			};  // end if (~onEnginePage) else
 		});
 
 		// Set up hold callback for clearing gestures and transport reset
@@ -982,6 +1011,52 @@ s.waitForBoot({
 				~updateGridLEDs.();
 			};
 		});
+
+		// Engine page LED update
+		~updateEnginePageLEDs = {
+			// Clear entire grid
+			16.do { |x| 8.do { |y| ~grid.led(x, y, GridInterface.ledOff) } };
+
+			// Back button (col 0, row 0)
+			~grid.led(0, 0, GridInterface.ledMedium);
+
+			// Engine slots (row 0, cols 1-N)
+			~engineOrder.do { |key, i|
+				var x = i + 1;
+				var engine = ~engines[key];
+				var brightness = case
+					{ key == ~currentEngine } { GridInterface.ledFull }   // bright = selected
+					{ engine[\implemented] } { GridInterface.ledMedium }  // medium = available
+					{ true } { GridInterface.ledDim };                    // dim = not implemented
+
+				~grid.led(x, 0, brightness);
+			};
+		};
+
+		// Engine page key handler
+		~handleEnginePage = { |x, y, state|
+			if (state == 1) {  // press only
+				case
+				{ x == 0 && (y == 0) } {
+					// Back button
+					~exitEnginePage.();
+				}
+				{ y == 0 && (x > 0) && (x <= ~engineOrder.size) } {
+					// Engine selection (row 0, cols 1-N)
+					var engineKey = ~engineOrder[x - 1];
+					var engine = ~engines[engineKey];
+
+					if (engine[\implemented]) {
+						~switchEngine.(engineKey);
+						~exitEnginePage.();
+					} {
+						// Flash dim to indicate not implemented
+						~grid.led(x, y, GridInterface.ledDim);
+						AppClock.sched(0.1, { ~updateEnginePageLEDs.(); nil });
+					};
+				};
+			};
+		};
 
 		// LED update function
 		~updateGridLEDs = {
@@ -1143,38 +1218,27 @@ s.waitForBoot({
 	"[Griddlecake] ========================================".postln;
 	"[Griddlecake] BOOT COMPLETE".postln;
 	"[Griddlecake] ========================================".postln;
+	"[Griddlecake] Engine: % (%)".format(~engines[~currentEngine][\name], ~currentEngine).postln;
+	"[Griddlecake] Available engines: %".format(~engineOrder).postln;
 	"[Griddlecake] LUT seed: %".format(~lutSeed).postln;
-	"[Griddlecake] Voice index: %".format(~voiceIndex).postln;
-	"[Griddlecake] FX index: %".format(~fxIndex).postln;
-	"[Griddlecake] Drone synth: %".format(~drone).postln;
+	"[Griddlecake] Synth: %".format(~synth).postln;
 	"[Griddlecake] ========================================".postln;
-	"[Griddlecake] Available functions:".postln;
+	"[Griddlecake] Functions:".postln;
+	"[Griddlecake]   ~switchEngine.(key)            - Switch engine".postln;
 	"[Griddlecake]   ~applyVoiceState.(index)       - Apply voice state".postln;
 	"[Griddlecake]   ~applyFxState.(index)          - Apply FX state".postln;
-	"[Griddlecake]   ~applyFullState.(voice, fx)    - Apply both".postln;
-	"[Griddlecake]   ~setVoiceState.(index, time)   - Voice with slew".postln;
-	"[Griddlecake]   ~setFxState.(index, time)      - FX with slew".postln;
-	"[Griddlecake]   ~testVoice.()                  - Test voice states".postln;
-	"[Griddlecake]   ~testFx.()                     - Test FX states".postln;
 	"[Griddlecake]   ~randomize.()                  - Randomize both".postln;
 	"[Griddlecake]   ~showSeed.()                   - Show LUT seed".postln;
 	"[Griddlecake]   ~setSlew.(time, curve)         - Set slew time/curve".postln;
-	"[Griddlecake]   ~setCurve.(curve)              - Set slew curve (-8 to 8)".postln;
 	"[Griddlecake]   ~eq.(low, mid, high)           - Set EQ gains (dB)".postln;
-	"[Griddlecake]   ~eqFreqs.(low, mid, high)      - Set EQ freqs (Hz)".postln;
-	"[Griddlecake]   ~eqMidQ.(q)                    - Set mid Q".postln;
-	"[Griddlecake]   ~eqBypass.()                   - Bypass EQ".postln;
 	"[Griddlecake]   ~comp.(th, rat, atk, rel, mk)  - Set compressor".postln;
-	"[Griddlecake]   ~compBypass.()                 - Bypass compressor".postln;
 	"[Griddlecake] Grid:".postln;
 	"[Griddlecake]   ~connectGrid.()               - Connect to oscgrid".postln;
 	"[Griddlecake]   ~disconnectGrid.()            - Disconnect grid".postln;
-	"[Griddlecake]   ~gridIP = \"x.x.x.x\"           - Set iPad IP".postln;
+	"[Griddlecake]   Hold s+a                      - Engine select page".postln;
 	"[Griddlecake] Clock/Transport:".postln;
 	"[Griddlecake]   ~tapTempo.()                  - Register tap for tempo".postln;
 	"[Griddlecake]   ~startTransport.()            - Start sequencer".postln;
-	"[Griddlecake]   ~stopTransport.()             - Stop sequencer".postln;
-	"[Griddlecake]   ~toggleTransport.()           - Toggle sequencer".postln;
 	"[Griddlecake]   ~bpm                          - Current BPM (%)".format(~bpm).postln;
 	"[Griddlecake] ========================================".postln;
 
