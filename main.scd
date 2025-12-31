@@ -22,6 +22,10 @@ s.waitForBoot({
 	~engines = Dictionary.new;
 	~engineOrder = [];  // Ordered list of engine keys for grid display
 
+	// Load shared LUT library (used by all engines)
+	~lutLib = (thisProcess.nowExecutingPath.dirname +/+ "synthdefs/lut_lib.scd").load;
+	"[Griddlecake] Loaded LUT library".postln;
+
 	// Load engine files - each returns a spec dictionary
 	~loadEngine = { |filename|
 		var path = thisProcess.nowExecutingPath.dirname +/+ "synthdefs" +/+ filename;

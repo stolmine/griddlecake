@@ -260,82 +260,77 @@ SynthDef(\feedbackNetwork, {
 		(idx: 24, name: \clouds_mix,    min: 0,    max: 1,    curve: \lin, default: 0),
 	],
 
-	// LUT generator
+	// LUT generator using shared lutLib
 	lutGenerator: { |seed|
-		var voiceLut, fxLut;
-		thisThread.randSeed = seed;
+		var lib = ~lutLib;
+		var voiceHome = [
+			0.5, 200, 0.2, 0.05,
+			0.5, 300, 0.2, 0.06,
+			0.5, 400, 0.2, 0.07,
+			0.5, 500, 0.2, 0.08,
+			0.5, 0, 0.2, 400, 0.3, 0.15, 0.03, 0.2
+		];
+		var fxHome = [
+			1.5, 0,  // tape
+			200, 500, 1200, 3000, 0.8, 0.8, 0.8, 0.8, 0.5, 0,  // filterBank
+			12, 0.3, 0.8, 0,  // shimmer
+			0, 0,  // freeze
+			0.5, 0.5, 0.5, 0.5, 0, 0, 0  // clouds
+		];
 
-		voiceLut = 65536.collect { |i|
-			if(i == 0) {
-				// State 0 = safe home
-				[
-					0.5, 200, 0.2, 0.05,
-					0.5, 300, 0.2, 0.06,
-					0.5, 400, 0.2, 0.07,
-					0.5, 500, 0.2, 0.08,
-					0.5, 0, 0.2, 400, 0.3, 0.15, 0.03, 0.2
-				]
-			} {
-				[
-					// Path 1-4
-					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
-					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
-					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
-					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
-					// Global
-					rrand(0.2, 0.85), 4.rand, rrand(0.1, 0.6),
-					rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6),
-					rrand(0.0, 0.5), exprand(0.01, 0.2), rrand(0.1, 0.8),
-				]
-			}
+		// Feedback path generator: [gain, freq, res, delay]
+		var pathGen = {
+			[
+				lib[\linear].(0.1, 2.0),
+				lib[\freq].(20, 4000, 0.5),  // higher freq bias than drone
+				lib[\curved].(0.8, 0.6),
+				lib[\time].(0.005, 0.5, 0.4)
+			]
 		};
 
-		fxLut = 65536.collect { |i|
-			if(i == 0) {
-				// State 0 = mostly dry
-				[
-					1.5, 0,  // tape
-					200, 500, 1200, 3000, 0.8, 0.8, 0.8, 0.8, 0.5, 0,  // ffb
-					12, 0.3, 0.8, 0,  // shimmer
-					0, 0,  // freeze
-					0.5, 0.5, 0.5, 0.5, 0, 0, 0  // clouds
-				]
-			} {
-				[
-					// Tape
-					exprand(0.5, 5),
-					rrand(0.0, 0.6),
-					// Filter Bank - formant-like frequencies
-					exprand(50, 500),
-					exprand(200, 1500),
-					exprand(500, 4000),
-					exprand(1500, 10000),
-					rrand(0.2, 1.0),
-					rrand(0.2, 1.0),
-					rrand(0.2, 1.0),
-					rrand(0.2, 1.0),
-					rrand(0.2, 0.9),
-					rrand(0.0, 0.7),
-					// Shimmer
-					rrand(-24, 24).round(1),  // semitones
-					rrand(0.1, 0.7),
-					rrand(0.3, 1.0),
-					rrand(0.0, 0.5),
-					// Freeze (mostly off, occasional freeze)
-					[0, 0, 0, 0, 1].choose,  // 20% chance of freeze
-					rrand(0.0, 0.5),
-					// Clouds
-					rrand(0.0, 1.0),
-					rrand(0.0, 1.0),
-					rrand(0.0, 1.0),
-					rrand(0.0, 1.0),
-					4.rand,
-					rrand(0.0, 0.7),
-					rrand(0.0, 0.6),
-				]
-			}
+		var voiceGen = {
+			// 4 paths + global params
+			pathGen.() ++ pathGen.() ++ pathGen.() ++ pathGen.() ++ [
+				// Global: feedback, exciter_type, cross_feed
+				lib[\linear].(0.2, 0.85),
+				lib[\int].(4),
+				lib[\linear].(0.1, 0.6),
+				// Exciter filter + LFO
+				lib[\freq].(20, 4000, 0.5),
+				lib[\curved].(0.8, 0.6),
+				lib[\linear].(0.0, 0.5),
+				lib[\exp].(0.01, 0.2),
+				lib[\linear].(0.1, 0.8)
+			]
 		};
 
-		(voice: voiceLut, fx: fxLut)
+		var fxGen = {
+			[
+				// Tape
+				lib[\exp].(0.5, 5),
+				lib[\linear].(0.0, 0.6),
+				// Filter Bank - formant-like frequencies
+				lib[\exp].(50, 500),
+				lib[\exp].(200, 1500),
+				lib[\exp].(500, 4000),
+				lib[\exp].(1500, 10000),
+				lib[\linear].(0.2, 1.0),
+				lib[\linear].(0.2, 1.0),
+				lib[\linear].(0.2, 1.0),
+				lib[\linear].(0.2, 1.0),
+				lib[\linear].(0.2, 0.9),
+				lib[\linear].(0.0, 0.7),
+				// Shimmer
+				lib[\linear].(-24, 24).round(1),
+				lib[\linear].(0.1, 0.7),
+				lib[\linear].(0.3, 1.0),
+				lib[\linear].(0.0, 0.5),
+				// Freeze (20% chance)
+				lib[\choose].([0, 0, 0, 0, 1]),
+				lib[\linear].(0.0, 0.5)
+			] ++ lib[\clouds].()
+		};
+
+		lib[\buildPair].(seed, voiceHome, voiceGen, fxHome, fxGen)
 	},
 )

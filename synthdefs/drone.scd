@@ -293,83 +293,58 @@ SynthDef(\chaosDrone, {
 		(idx: 38, name: \clouds_mix,   min: 0,     max: 1,     curve: \lin, default: 0),
 	],
 
-	// LUT generator with Cyclebox-appropriate weighting
+	// LUT generator using shared lutLib
 	lutGenerator: { |seed|
-		var voiceLut, fxLut;
-		thisThread.randSeed = seed;
+		var lib = ~lutLib;
+		var voiceHome = [
+			55, 0, 0.5,           // osc1: 55Hz sine
+			55, 0, 0.5, 0, 1,     // osc2: 55Hz sine, no track
+			0, 0, 0,              // no FM, OSC1 mode, no combo mix
+			0, 0, 0, 0,           // no noise
+			1000, 0, 0, 0,        // filter open, no res
+			0                     // reserved
+		];
+		var fxHome = [16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0];
 
-		voiceLut = 65536.collect { |i|
-			if(i == 0) {
-				// State 0 = home base: 55Hz sine, no FX
-				[
-					55, 0, 0.5,           // osc1: 55Hz sine
-					55, 0, 0.5, 0, 1,     // osc2: 55Hz sine, no track
-					0, 0, 0,              // no FM, OSC1 mode, no combo mix
-					0, 0, 0, 0,           // no noise
-					1000, 0, 0, 0,        // filter open, no res
-					0                      // reserved
-				]
-			} {
-				[
-					// Osc1 - bias toward low frequencies
-					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),
-					4.rand,  // wave
-					rrand(0.01, 0.99),  // pw
-					// Osc2
-					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),
-					4.rand,
-					rrand(0.01, 0.99),
-					2.rand,  // track
-					[0.25, 0.5, 1, 1.5, 2, 3, 4].choose,  // musical ratios
-					// Combo
-					rrand(0.0, 0.5),  // fm_amount
-					9.rand,  // combo_mode
-					rrand(0.0, 1.0),  // combo_mix
-					// Noise
-					3.rand,
-					rrand(0.0, 0.3),  // subtle noise
-					rrand(0.0, 0.2),
-					rrand(0.0, 0.2),
-					// Filter - bias toward low/mid
-					rrand(0.0, 1.0).pow(1.5).linexp(0, 1, 20, 16000),
-					rrand(0.0, 0.8),
-					4.rand,  // filter type
-					2.rand,  // track
-					// Reserved
-					0
-				]
-			}
+		var voiceGen = {
+			[
+				// Osc1 - bias toward low frequencies
+				lib[\freq].(20, 2000, 1.8),
+				lib[\int].(4),
+				lib[\linear].(0.01, 0.99),
+				// Osc2
+				lib[\freq].(20, 2000, 1.8),
+				lib[\int].(4),
+				lib[\linear].(0.01, 0.99),
+				lib[\int].(2),
+				lib[\choose].([0.25, 0.5, 1, 1.5, 2, 3, 4]),
+				// Combo
+				lib[\linear].(0.0, 0.5),
+				lib[\int].(9),
+				lib[\linear].(0.0, 1.0),
+				// Noise
+				lib[\int].(3),
+				lib[\linear].(0.0, 0.3),
+				lib[\linear].(0.0, 0.2),
+				lib[\linear].(0.0, 0.2),
+				// Filter - bias toward low/mid
+				lib[\freq].(20, 16000, 1.5),
+				lib[\linear].(0.0, 0.8),
+				lib[\int].(4),
+				lib[\int].(2),
+				// Reserved
+				0
+			]
 		};
 
-		fxLut = 65536.collect { |i|
-			if(i == 0) {
-				// State 0 = dry FX
-				[16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0]
-			} {
-				[
-					rrand(4, 16),              // lofi_bits
-					exprand(1000, 48000),      // lofi_rate
-					rrand(0.0, 0.5),           // lofi_mix (bias subtle)
-					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),  // ring_freq
-					4.rand,                    // ring_wave
-					rrand(0.0, 0.4),           // ring_mix
-					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),  // comb_freq
-					exprand(0.1, 10),          // comb_decay
-					rrand(0.0, 0.5),           // comb_mix
-					exprand(1, 2000),          // delay_time
-					rrand(0.0, 0.8),           // delay_fb
-					rrand(0.0, 0.5),           // delay_mix
-					rrand(0.0, 1.0),           // clouds_pos
-					rrand(0.0, 1.0),           // clouds_size
-					rrand(0.0, 1.0),           // clouds_dens
-					rrand(0.0, 1.0),           // clouds_tex
-					4.rand,                    // clouds_mode
-					rrand(0.0, 0.7),           // clouds_rvb
-					rrand(0.0, 0.6),           // clouds_mix
-				]
-			}
+		var fxGen = {
+			lib[\lofi].(mixMax: 0.5)
+			++ lib[\ring].(mixMax: 0.4)
+			++ lib[\comb].(mixMax: 0.5)
+			++ lib[\delay].(timeR: [1, 2000])
+			++ lib[\clouds].()
 		};
 
-		(voice: voiceLut, fx: fxLut)
+		lib[\buildPair].(seed, voiceHome, voiceGen, fxHome, fxGen)
 	},
 )
