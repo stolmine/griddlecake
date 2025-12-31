@@ -142,9 +142,8 @@ s.waitForBoot({
 	// ENGINE SWITCHING
 	// ========================================
 
-	// Engine page state
-	~onEnginePage = false;
-	~pageButtonStates = (s: false, a: false);  // Track page button holds
+	// Engine modal state (overlay on param grid)
+	~engineModalActive = false;
 
 	// Switch to a different engine
 	~switchEngine = { |newEngineKey|
@@ -166,11 +165,19 @@ s.waitForBoot({
 				~voiceLut = luts[\voice];
 				~fxLut = luts[\fx];
 
+				// Update param names from engine spec
+				~voiceParamNames = engine[\voiceParams].collect({ |p| p[\name] });
+				~fxParamNames = engine[\fxParams].collect({ |p| p[\name] });
+
 				// Fade out old synth
 				oldSynth.set(\gate, 0);
 
-				// Boot new synth after fade
-				AppClock.sched(0.12, {
+				// Use fork for reliable timing with server sync
+				fork {
+					// Wait for release envelope (100ms) + safety buffer
+					0.12.wait;
+
+					// Create new synth
 					~synth = Synth(engine[\synthDef], [
 						\output_level, 0.5,
 						\slew_time, ~getSlewTime.(),
@@ -180,13 +187,15 @@ s.waitForBoot({
 					~drone = ~synth;  // Update alias
 					~currentEngine = newEngineKey;
 
-					// Apply current DAC state to new engine
+					// Wait for server to confirm synth creation
+					s.sync;
+
+					// Now safe to apply parameters
 					~applyVoiceState.(~voiceDacState);
 					~applyFxState.(~fxDacState);
 
 					"[Griddlecake] Engine switch complete: %".format(engine[\name]).postln;
-					nil
-				});
+				};
 			};
 		};
 	};
@@ -745,37 +754,33 @@ s.waitForBoot({
 		~grid.key({ |x, y, state|
 			var zone = ~grid.getZone(x, y);
 
-			// Route to engine page handler if active
-			if (~onEnginePage) {
-				~handleEnginePage.(x, y, state);
-			} {
-				// Normal main UI handling
-				if (state == 1) {
-					switch(zone,
-						\navigation, {
-							// Column 0: page select + clock controls
-							if (y == 0) {
+			// Normal UI handling (modal overlay is just visual)
+			if (state == 1) {
+				switch(zone,
+					\navigation, {
+						// Column 0: page select + clock controls
+						if (y == 0) {
+							if (~engineModalActive) {
+								// Exit modal, stay on current page
+								~engineModalActive = false;
+								"[Grid] Engine modal closed".postln;
+							} {
 								~currentPage = 0;
 								~pressedPageButton = 0;  // Track for preset saving
-								~pageButtonStates[\s] = true;
-								// Check for engine page entry (both held)
-								if (~pageButtonStates[\a]) {
-									~enterEnginePage.();
-								} {
-									"[Grid] Page: Synth".postln;
-								};
+								"[Grid] Page: Synth".postln;
 							};
-							if (y == 1) {
+						};
+						if (y == 1) {
+							if (~engineModalActive) {
+								// Exit modal, stay on current page
+								~engineModalActive = false;
+								"[Grid] Engine modal closed".postln;
+							} {
 								~currentPage = 1;
 								~pressedPageButton = 1;  // Track for preset saving
-								~pageButtonStates[\a] = true;
-								// Check for engine page entry (both held)
-								if (~pageButtonStates[\s]) {
-									~enterEnginePage.();
-								} {
-									"[Grid] Page: FX".postln;
-								};
+								"[Grid] Page: FX".postln;
 							};
+						};
 						if (y == 2) {
 							// Tap tempo - OR set loop length if seq step held
 							if (~pressedSeqStep.notNil) {
@@ -791,23 +796,42 @@ s.waitForBoot({
 						~updateGridLEDs.();
 					},
 					\paramGrid, {
-						// Cols 1-4, rows 0-3: 16-bit DAC toggle
-						var bitPos = ((y * 4) + (x - 1));
-
-						// Toggle bit on current page's DAC state
-						if (~currentPage == 0) {
-							~voiceDacState = ~voiceDacState.bitXor(1 << (15 - bitPos));
-							~applyVoiceState.(~voiceDacState);
-							"[Grid] Voice DAC: % (bit % toggled)".format(~voiceDacState, 15 - bitPos).postln;
+						// Cols 1-4, rows 0-3
+						if (~engineModalActive) {
+							// Engine selection mode (row 0 only)
+							if (y == 0) {
+								var engineIdx = x - 1;  // 0-3
+								if (engineIdx < ~engineOrder.size) {
+									var engineKey = ~engineOrder[engineIdx];
+									var engine = ~engines[engineKey];
+									if (engine[\implemented]) {
+										~switchEngine.(engineKey);
+									} {
+										"[Grid] Engine % not implemented".format(engineKey).postln;
+									};
+								};
+							};
+							// Any tap in param grid exits modal
+							~engineModalActive = false;
 						} {
-							~fxDacState = ~fxDacState.bitXor(1 << (15 - bitPos));
-							~applyFxState.(~fxDacState);
-							"[Grid] FX DAC: % (bit % toggled)".format(~fxDacState, 15 - bitPos).postln;
-						};
+							// Normal: 16-bit DAC toggle
+							var bitPos = ((y * 4) + (x - 1));
 
-						// Record step if recording
-						if (~recordingSlot.notNil) {
-							~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState);
+							// Toggle bit on current page's DAC state
+							if (~currentPage == 0) {
+								~voiceDacState = ~voiceDacState.bitXor(1 << (15 - bitPos));
+								~applyVoiceState.(~voiceDacState);
+								"[Grid] Voice DAC: % (bit % toggled)".format(~voiceDacState, 15 - bitPos).postln;
+							} {
+								~fxDacState = ~fxDacState.bitXor(1 << (15 - bitPos));
+								~applyFxState.(~fxDacState);
+								"[Grid] FX DAC: % (bit % toggled)".format(~fxDacState, 15 - bitPos).postln;
+							};
+
+							// Record step if recording
+							if (~recordingSlot.notNil) {
+								~gestures.addStep(~recordingSlot, ~voiceDacState, ~fxDacState);
+							};
 						};
 
 						~updateGridLEDs.();
@@ -948,20 +972,14 @@ s.waitForBoot({
 						~pressedSeqStep = nil;
 					};
 					if (zone == \navigation) {
-						if (y == 0) {
+						if (y < 2) {
 							~pressedPageButton = nil;
-							~pageButtonStates[\s] = false;
-						};
-						if (y == 1) {
-							~pressedPageButton = nil;
-							~pageButtonStates[\a] = false;
 						};
 					};
 				};
-			};  // end if (~onEnginePage) else
 		});
 
-		// Set up hold callback for clearing gestures and transport reset
+		// Set up hold callback for clearing gestures, transport reset, and engine modal
 		~grid.hold({ |x, y|
 			var zone = ~grid.getZone(x, y);
 			if (zone == \gestures) {
@@ -971,6 +989,12 @@ s.waitForBoot({
 				~updateGridLEDs.();
 			};
 			if (zone == \navigation) {
+				if (y < 2) {
+					// Hold page button = enter engine modal
+					~engineModalActive = true;
+					"[Grid] Engine select modal opened".postln;
+					~updateGridLEDs.();
+				};
 				if (y == 3) {
 					// Hold transport = stop and reset to beginning
 					~stopTransport.();
@@ -1000,74 +1024,6 @@ s.waitForBoot({
 			};
 		});
 
-		// Engine page LED update
-		~updateEnginePageLEDs = {
-			// Clear entire grid
-			16.do { |x| 8.do { |y| ~grid.led(x, y, GridInterface.ledOff) } };
-
-			// Back button (col 0, row 0)
-			~grid.led(0, 0, GridInterface.ledMedium);
-
-			// Engine slots (row 0, cols 1-N)
-			~engineOrder.do { |key, i|
-				var x = i + 1;
-				var engine = ~engines[key];
-				var brightness = case
-					{ key == ~currentEngine } { GridInterface.ledFull }   // bright = selected
-					{ engine[\implemented] } { GridInterface.ledMedium }  // medium = available
-					{ true } { GridInterface.ledDim };                    // dim = not implemented
-
-				~grid.led(x, 0, brightness);
-			};
-			// Note: ~grid.led() already sets dirty flag internally
-		};
-
-		// Enter engine page
-		~enginePageEntryTime = 0;
-		~enterEnginePage = {
-			~onEnginePage = true;
-			~enginePageEntryTime = Main.elapsedTime;
-			~updateEnginePageLEDs.();
-			"[Griddlecake] Entered engine select page".postln;
-		};
-
-		// Exit engine page
-		~exitEnginePage = {
-			~onEnginePage = false;
-			~updateGridLEDs.();
-			"[Griddlecake] Returned to main UI".postln;
-		};
-
-		// Engine page key handler
-		~handleEnginePage = { |x, y, state|
-			// Debounce: ignore events within 300ms of entering engine page
-			if ((Main.elapsedTime - ~enginePageEntryTime) < 0.3) {
-				// Ignore - too soon after entry
-			} {
-				if (state == 1) {  // press only
-					case
-					{ x == 0 && (y == 0) } {
-						// Back button
-						~exitEnginePage.();
-					}
-				{ y == 0 && (x > 0) && (x <= ~engineOrder.size) } {
-					// Engine selection (row 0, cols 1-N)
-					var engineKey = ~engineOrder[x - 1];
-					var engine = ~engines[engineKey];
-
-					if (engine[\implemented]) {
-						~switchEngine.(engineKey);
-						~exitEnginePage.();
-					} {
-						// Flash dim to indicate not implemented
-						~grid.led(x, y, GridInterface.ledDim);
-						AppClock.sched(0.1, { ~updateEnginePageLEDs.(); nil });
-					};
-				};
-				};
-			};
-		};
-
 		// LED update function
 		~updateGridLEDs = {
 			// Show current page's DAC state on param grid (cols 1-4)
@@ -1078,6 +1034,19 @@ s.waitForBoot({
 				var isOn = (dacState >> (15 - bitPos)) & 1;
 				~grid.led(x + 1, y, isOn * GridInterface.ledFull);
 			}};
+
+			// Engine modal overlay (row 0 of param grid)
+			if (~engineModalActive) {
+				~engineOrder.do { |key, i|
+					var x = i + 1;  // cols 1-4
+					var engine = ~engines[key];
+					var brightness = case
+						{ key == ~currentEngine } { GridInterface.ledFull }
+						{ engine[\implemented] } { GridInterface.ledMedium }
+						{ true } { GridInterface.ledDim };
+					~grid.led(x, 0, brightness);
+				};
+			};
 
 			// Utilities (cols 5-7) - dim static indicators
 			4.do { |row|
@@ -1131,9 +1100,14 @@ s.waitForBoot({
 				};
 			};
 
-			// Page indicator (row 0-1)
-			~grid.led(0, 0, if(~currentPage == 0) { GridInterface.ledFull } { GridInterface.ledDim });
-			~grid.led(0, 1, if(~currentPage == 1) { GridInterface.ledFull } { GridInterface.ledDim });
+			// Page indicator (row 0-1) - both lit when engine modal active
+			if (~engineModalActive) {
+				~grid.led(0, 0, GridInterface.ledFull);
+				~grid.led(0, 1, GridInterface.ledFull);
+			} {
+				~grid.led(0, 0, if(~currentPage == 0) { GridInterface.ledFull } { GridInterface.ledDim });
+				~grid.led(0, 1, if(~currentPage == 1) { GridInterface.ledFull } { GridInterface.ledDim });
+			};
 
 			// Tap tempo (row 2) - dim
 			~grid.led(0, 2, GridInterface.ledDim);

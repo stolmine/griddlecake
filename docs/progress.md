@@ -40,17 +40,37 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Per-engine LUT generators with caching
 
 **In Progress:**
-- Engine select page (hold s+a) - logic works but LED display not updating
-- Feedback engine hot-swap - synth node timing issue
+- Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
 
 **Next Steps:**
-1. Fix engine page LED display (grid not visually updating)
-2. Fix engine switch synth node timing (node freed before new synth ready)
-3. Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
+1. Test engine page LED display and hot-swap fixes
+2. Continue Phase 5 polish work
 
 ---
 
 ## Session Log
+
+### 2025-12-31 (Session 8)
+
+**Engine Modal Refactor:**
+- Replaced complex engine "page" with simple modal overlay
+- Hold either page button (>500ms) = enter engine modal
+- Engine options overlay param grid row 0 (cols 1-4)
+- Both page buttons lit while modal active
+- Tap engine = select + exit modal
+- Tap page button = exit modal (retain current page)
+- Removed: `~onEnginePage`, `~pageButtonStates`, `~enterEnginePage`, `~exitEnginePage`, `~handleEnginePage`, `~updateEnginePageLEDs`
+- Added: `~engineModalActive` flag, modal overlay in `~updateGridLEDs`
+
+**Synth Node Timing Fix:**
+- Fixed "Node 1000 not found" error during engine switch
+- Replaced `AppClock.sched` with `fork` for proper timing control
+- Added `s.sync` after synth creation to wait for server confirmation
+- Parameters now applied only after server confirms node is ready
+
+**Root Cause:** Race condition - `~applyVoiceState`/`~applyFxState` called before server registered new synth
+
+---
 
 ### 2025-12-30 (Session 7)
 
@@ -91,9 +111,9 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Added 300ms debounce after engine page entry
 - Removed output_level from voiceParamNames (was getting set to 0 from reserved slot)
 
-**Known Issues:**
-- Engine select page: logic works but grid LEDs not visually updating
-- Engine switch: "Node 1000 not found" - old synth freed before new one ready, ~applyVoiceState called on freed node
+**Known Issues (Fixed in Session 8):**
+- ~~Engine select page: logic works but grid LEDs not visually updating~~ - Fixed: added `~grid.sendLEDs` force refresh
+- ~~Engine switch: "Node 1000 not found"~~ - Fixed: use `fork` + `s.sync` for proper timing
 
 ---
 
