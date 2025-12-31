@@ -10,9 +10,7 @@
 //
 // FX params (25): tape, filter bank, shimmer, freeze, clouds
 // EQ + Comp hardcoded at end (not in LUT)
-
-// Load shared FX library
-(thisProcess.nowExecutingPath.dirname +/+ "fx_lib.scd").load;
+// Note: fx_lib.scd is loaded by main.scd before engine loading
 
 SynthDef(\feedbackNetwork, {
 	arg

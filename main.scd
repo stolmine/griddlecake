@@ -22,15 +22,28 @@ s.waitForBoot({
 	~engines = Dictionary.new;
 	~engineOrder = [];  // Ordered list of engine keys for grid display
 
-	// Load shared LUT library (used by all engines)
-	~lutLib = (thisProcess.nowExecutingPath.dirname +/+ "synthdefs/lut_lib.scd").load;
+	// Load shared libraries (used by all engines)
+	~synthdefs_dir = thisProcess.nowExecutingPath.dirname +/+ "synthdefs";
+	~lutLib = (~synthdefs_dir +/+ "lut_lib.scd").load;
 	"[Griddlecake] Loaded LUT library".postln;
+	(~synthdefs_dir +/+ "fx_lib.scd").load;
+	"[Griddlecake] Loaded FX library".postln;
 
 	// Load engine files - each returns a spec dictionary
 	~loadEngine = { |filename|
-		var path = thisProcess.nowExecutingPath.dirname +/+ "synthdefs" +/+ filename;
+		var path = ~synthdefs_dir +/+ filename;
 		var spec = path.load;
 		if (spec.notNil && spec[\key].notNil) {
+			// Validate required keys
+			if (spec[\synthDef].isNil) {
+				"[Griddlecake]   WARNING: Engine % missing synthDef".format(spec[\key]).warn;
+			};
+			if (spec[\voiceParams].isNil || spec[\fxParams].isNil) {
+				"[Griddlecake]   WARNING: Engine % missing param specs".format(spec[\key]).warn;
+			};
+			if (spec[\lutGenerator].isNil) {
+				"[Griddlecake]   WARNING: Engine % missing lutGenerator".format(spec[\key]).warn;
+			};
 			~engines[spec[\key]] = spec;
 			~engineOrder = ~engineOrder.add(spec[\key]);
 			"[Griddlecake]   Loaded engine: % (%)".format(spec[\name], spec[\key]).postln;
@@ -96,41 +109,18 @@ s.waitForBoot({
 	"[Griddlecake] FX LUT: % entries".format(~fxLut.size).postln;
 
 	// ========================================
-	// PARAMETER NAMES
+	// PARAMETER NAMES (derived from current engine)
 	// ========================================
 
-	~voiceParamNames = [
-		// Oscillators (0-2)
-		\osc1_freq, \osc1_wave, \osc1_pw,
-		// Osc2 (3-7)
-		\osc2_freq, \osc2_wave, \osc2_pw, \osc2_track, \osc2_ratio,
-		// Combo (8-10)
-		\fm_amount, \combo_mode, \combo_mix,
-		// Noise (11-14)
-		\noise_type, \noise_level, \noise_to_osc1, \noise_to_osc2,
-		// Filter (15-18)
-		\filter_freq, \filter_res, \filter_type, \filter_track
-		// Note: index 19 is reserved in LUT, not applied
-		// output_level is user-controlled, not from LUT
-	];
+	// Helper to get param names from current engine spec
+	~getEngineParamNames = {
+		var engine = ~engines[~currentEngine];
+		~voiceParamNames = engine[\voiceParams].collect({ |p| p[\name] });
+		~fxParamNames = engine[\fxParams].collect({ |p| p[\name] });
+	};
 
-	~fxParamNames = [
-		// Lo-Fi
-		\lofi_bits, \lofi_rate, \lofi_mix,
-
-		// Ring Mod
-		\ring_freq, \ring_wave, \ring_mix,
-
-		// Comb
-		\comb_freq, \comb_decay, \comb_mix,
-
-		// Delay
-		\delay_time, \delay_fb, \delay_mix,
-
-		// MiClouds
-		\clouds_pos, \clouds_size, \clouds_dens, \clouds_tex,
-		\clouds_mode, \clouds_rvb, \clouds_mix
-	];
+	// Initialize param names for starting engine
+	~getEngineParamNames.();
 
 	// ========================================
 	// CREATE SYNTH
@@ -170,9 +160,9 @@ s.waitForBoot({
 				~voiceLut = luts[\voice];
 				~fxLut = luts[\fx];
 
-				// Update param names from engine spec
-				~voiceParamNames = engine[\voiceParams].collect({ |p| p[\name] });
-				~fxParamNames = engine[\fxParams].collect({ |p| p[\name] });
+				// Update current engine and derive param names
+				~currentEngine = newEngineKey;
+				~getEngineParamNames.();
 
 				// Fade out old synth
 				oldSynth.set(\gate, 0);
@@ -189,8 +179,7 @@ s.waitForBoot({
 						\slew_curve, ~getSlewCurve.(),
 						\gate, 1
 					]);
-					~drone = ~synth;  // Update alias
-					~currentEngine = newEngineKey;
+					~drone = ~synth;  // Backwards compatibility alias
 
 					// Wait for server to confirm synth creation
 					s.sync;
@@ -287,7 +276,7 @@ s.waitForBoot({
 						~applyBlendedParams.();
 
 						// Trigger MiClouds on clock
-						~drone.set(\t_clock, 1);
+						~synth.set(\t_clock, 1);
 
 						// Update LEDs
 						~updateGridLEDs.();
@@ -335,12 +324,12 @@ s.waitForBoot({
 
 		// Apply voice params directly
 		~voiceParamNames.do { |name, i|
-			~drone.set(name, voiceParams[i]);
+			~synth.set(name, voiceParams[i]);
 		};
 
 		// Apply FX params directly
 		~fxParamNames.do { |name, i|
-			~drone.set(name, fxParams[i]);
+			~synth.set(name, fxParams[i]);
 		};
 	};
 
@@ -430,7 +419,7 @@ s.waitForBoot({
 	~applyVoiceState = { |index|
 		var params = ~voiceLut[index.asInteger.clip(0, 65535)];
 		~voiceParamNames.do({ |name, i|
-			~drone.set(name, params[i]);
+			~synth.set(name, params[i]);
 		});
 		~voiceIndex = index.asInteger;
 	};
@@ -439,7 +428,7 @@ s.waitForBoot({
 	~applyFxState = { |index|
 		var params = ~fxLut[index.asInteger.clip(0, 65535)];
 		~fxParamNames.do({ |name, i|
-			~drone.set(name, params[i]);
+			~synth.set(name, params[i]);
 		});
 		~fxIndex = index.asInteger;
 	};
@@ -479,7 +468,7 @@ s.waitForBoot({
 
 				// Apply interpolated params directly
 				~voiceParamNames.do({ |name, i|
-					~drone.set(name, interpParams[i]);
+					~synth.set(name, interpParams[i]);
 				});
 
 				if (progress >= 1.0) {
@@ -522,7 +511,7 @@ s.waitForBoot({
 
 				// Apply interpolated params directly
 				~fxParamNames.do({ |name, i|
-					~drone.set(name, interpParams[i]);
+					~synth.set(name, interpParams[i]);
 				});
 
 				if (progress >= 1.0) {
@@ -661,23 +650,23 @@ s.waitForBoot({
 
 	// EQ controls
 	~eq = { |low=0, mid=0, high=0|
-		~drone.set(\eq_low_gain, low, \eq_mid_gain, mid, \eq_high_gain, high);
+		~synth.set(\eq_low_gain, low, \eq_mid_gain, mid, \eq_high_gain, high);
 		"[Griddlecake] EQ: low %dB, mid %dB, high %dB".format(low, mid, high).postln;
 	};
 
 	~eqFreqs = { |low=200, mid=1000, high=4000|
-		~drone.set(\eq_low_freq, low, \eq_mid_freq, mid, \eq_high_freq, high);
+		~synth.set(\eq_low_freq, low, \eq_mid_freq, mid, \eq_high_freq, high);
 		"[Griddlecake] EQ freqs: low %Hz, mid %Hz, high %Hz".format(low, mid, high).postln;
 	};
 
 	~eqMidQ = { |q=0.5|
-		~drone.set(\eq_mid_q, q);
+		~synth.set(\eq_mid_q, q);
 		"[Griddlecake] EQ mid Q: %".format(q).postln;
 	};
 
 	// Compressor controls
 	~comp = { |thresh=0.5, ratio=2, attack=0.01, release=0.1, makeup=1|
-		~drone.set(
+		~synth.set(
 			\comp_thresh, thresh,
 			\comp_ratio, ratio,
 			\comp_attack, attack,
@@ -691,13 +680,13 @@ s.waitForBoot({
 
 	// Bypass EQ (set all gains to 0)
 	~eqBypass = {
-		~drone.set(\eq_low_gain, 0, \eq_mid_gain, 0, \eq_high_gain, 0);
+		~synth.set(\eq_low_gain, 0, \eq_mid_gain, 0, \eq_high_gain, 0);
 		"[Griddlecake] EQ bypassed".postln;
 	};
 
 	// Bypass compressor (ratio 1:1)
 	~compBypass = {
-		~drone.set(\comp_ratio, 1, \comp_makeup, 1);
+		~synth.set(\comp_ratio, 1, \comp_makeup, 1);
 		"[Griddlecake] Compressor bypassed".postln;
 	};
 
@@ -735,7 +724,7 @@ s.waitForBoot({
 	~applySlew = {
 		var time = ~getSlewTime.();
 		var curve = ~getSlewCurve.();
-		~drone.set(\slew_time, time, \slew_curve, curve);
+		~synth.set(\slew_time, time, \slew_curve, curve);
 		"[Grid] Slew: %s, curve %".format(time.round(0.001), curve.round(0.1)).postln;
 	};
 

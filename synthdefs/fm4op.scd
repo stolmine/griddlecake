@@ -11,9 +11,7 @@
 //   p18-p19: Reserved
 //
 // FX params (20): wavefolder, chorus, filter, delay, clouds
-
-// Load shared FX library
-(thisProcess.nowExecutingPath.dirname +/+ "fx_lib.scd").load;
+// Note: fx_lib.scd is loaded by main.scd before engine loading
 
 SynthDef(\fm4op, {
 	arg gate = 1,
