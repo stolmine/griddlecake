@@ -163,4 +163,26 @@
 	XFade2.ar(sig, shifted, mix * 2 - 1)
 };
 
+// Wavefolder (adds harmonics via folding)
+~fxWavefold = { |sig, drive, sym, mix|
+	var folded, shaped;
+	shaped = sig * drive.linexp(0, 1, 1, 10);
+	// Asymmetric folding based on sym param
+	folded = (shaped + (sym * 0.5)).fold2(1) * (1 + (sym * 0.3));
+	folded = LeakDC.ar(folded);
+	XFade2.ar(sig, folded, mix * 2 - 1)
+};
+
+// Multimode Filter (SVF-style: LP, BP, HP, Notch)
+~fxFilter = { |sig, freq, res, mode, mix|
+	var filtered;
+	filtered = Select.ar(mode, [
+		RLPF.ar(sig, freq.clip(20, 18000), res.linexp(0, 1, 1, 0.01)),  // LP
+		BPF.ar(sig, freq.clip(20, 18000), res.linexp(0, 1, 2, 0.1)),    // BP
+		RHPF.ar(sig, freq.clip(20, 18000), res.linexp(0, 1, 1, 0.01)), // HP
+		BRF.ar(sig, freq.clip(20, 18000), res.linexp(0, 1, 2, 0.1))    // Notch
+	]);
+	XFade2.ar(sig, filtered, mix * 2 - 1)
+};
+
 "[FX Lib] Loaded FX building blocks".postln;

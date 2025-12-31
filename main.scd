@@ -42,6 +42,7 @@ s.waitForBoot({
 	// Load all engines
 	~loadEngine.("drone.scd");
 	~loadEngine.("feedback.scd");
+	~loadEngine.("fm4op.scd");
 	s.sync;
 
 	// Set initial engine
