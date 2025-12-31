@@ -1021,7 +1021,7 @@ s.waitForBoot({
 				~grid.led(x, 0, brightness);
 			};
 
-			~grid.ledDirty = true;  // Force refresh
+			~grid.dirty = true;  // Force refresh
 		};
 
 		// Enter engine page
