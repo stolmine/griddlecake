@@ -295,9 +295,10 @@ SynthDef(\chaosDrone, {
 
 	// LUT generator with Cyclebox-appropriate weighting
 	lutGenerator: { |seed|
+		var voiceLut, fxLut;
 		thisThread.randSeed = seed;
 
-		var voiceLut = 65536.collect { |i|
+		voiceLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = home base: 55Hz sine, no FX
 				Float32Array[
@@ -340,7 +341,7 @@ SynthDef(\chaosDrone, {
 			}
 		};
 
-		var fxLut = 65536.collect { |i|
+		fxLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = dry FX
 				Float32Array[16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0]

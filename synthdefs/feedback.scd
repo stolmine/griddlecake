@@ -256,9 +256,10 @@ SynthDef(\feedbackNetwork, {
 
 	// LUT generator with feedback-appropriate weighting
 	lutGenerator: { |seed|
+		var voiceLut, fxLut;
 		thisThread.randSeed = seed;
 
-		var voiceLut = 65536.collect { |i|
+		voiceLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = safe home: gentle feedback, low freqs, moderate delays
 				Float32Array[
@@ -299,7 +300,7 @@ SynthDef(\feedbackNetwork, {
 			}
 		};
 
-		var fxLut = 65536.collect { |i|
+		fxLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = dry FX
 				Float32Array[16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0]
