@@ -35,12 +35,13 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 ┌─────────────────────────────────────────────────────┐
 │              SuperCollider (sclang)                  │
 ├─────────────────────────────────────────────────────┤
-│  GridInterface  │  LUT (65536×39)  │  Sequencer     │
-│  GestureRecorder│  StateManager    │  Clock         │
+│  GridInterface  │  LUT (65536×N)   │  Sequencer     │
+│  GestureRecorder│  ~lutLib         │  Clock         │
 ├─────────────────────────────────────────────────────┤
-│              SynthDef(\chaosDrone)                  │
-│  Osc1+Osc2 → Combo → Filter → Lo-Fi → Ring Mod →   │
-│  Comb → Delay → MiClouds → Limiter → Out           │
+│  ~fxLib (shared FX blocks)                          │
+├─────────────────────────────────────────────────────┤
+│  Engines: drone | feedback | fm4op                  │
+│  (hot-swappable with per-engine LUT + FX chain)     │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -50,26 +51,19 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 
 - **Drone architecture** - No envelopes, no VCA. Always sounding.
 - **Pure SuperCollider** - No Rust/CLI layer. Grid IS the interface.
-- **Cyclebox-inspired** - 9 bitwise waveform combination modes
+- **Multi-engine** - Hot-swappable synthesis engines with per-engine LUTs
+- **Shared libraries** - `lut_lib.scd` (random generators), `fx_lib.scd` (FX blocks)
 - **MiClouds granular** - Provides texture, space, and internal reverb
-- **39 parameters** in LUT (~10.2 MB total)
 
 ---
 
-## Parameter Summary
+## Engines
 
-| Section | Count | Key Params |
-|---------|-------|------------|
-| Oscillators | 11 | freq, wave, pw, track, ratio, fm, combo |
-| Noise | 4 | type, level, to_osc1, to_osc2 |
-| Filter | 4 | freq, res, type, track |
-| Lo-Fi | 3 | bits, rate, mix |
-| Ring Mod | 3 | freq, wave, mix |
-| Comb Res | 3 | freq, decay, mix |
-| Delay | 3 | time, fb, mix |
-| MiClouds | 7 | pos, size, dens, tex, mode, rvb, mix |
-| Output | 1 | level (user-controlled, not in LUT) |
-| **Total** | **39** | (38 in LUT + 1 user volume) |
+| Engine | Voice Params | FX Params | Character |
+|--------|--------------|-----------|-----------|
+| drone | 20 | 19 | 2-osc + bitwise combo modes |
+| feedback | 24 | 25 | 4 cross-feeding filter+delay paths |
+| fm4op | 20 | 20 | 4-operator FM with 8 algorithms |
 
 ---
 
@@ -91,5 +85,5 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 
 ---
 
-**Version:** 2.0.0-draft
-**Last Updated:** 2025-12-28
+**Version:** 2.1.0-draft
+**Last Updated:** 2025-12-31

@@ -38,17 +38,66 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Feedback Network engine SynthDef (4 cross-feeding paths)
 - Engine registry and hot-swap architecture
 - Per-engine LUT generators with caching
+- FX Library (`synthdefs/fx_lib.scd`) - shared FX building blocks for DRY engine composition
+- Engine-specific FX chains (drone: original, feedback: ethereal tape/shimmer/freeze chain)
+- Feedback engine enhancements (exciter filtering, LFO modulation, tuned delay ranges)
+- LUT Library (`synthdefs/lut_lib.scd`) - shared random generators with musical weighting
+- 4-Op FM engine (`synthdefs/fm4op.scd`) - 8 algorithms, harmonic ratio weighting
+- Centralized library loading (fx_lib, lut_lib loaded before engines)
+- Engine-derived param names (no hardcoding)
 
 **In Progress:**
 - Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
 
 **Next Steps:**
-1. Test engine page LED display and hot-swap fixes
-2. Continue Phase 5 polish work
+1. Continue Phase 5 polish work
+2. Test FM engine in performance
+3. Consider additional engines (wavetable, additive, modal)
 
 ---
 
 ## Session Log
+
+### 2025-12-31 (Session 9)
+
+**LUT Bug Fix:**
+- Fixed broken frequency weighting formulas in drone.scd and feedback.scd
+- `{ rrand(20.0, 2000.0) }.().pow(1.8).linexp(...)` was clipping to max
+- Corrected to `rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000)`
+- Now produces proper low-frequency bias (85% below 500Hz)
+
+**LUT Library (`synthdefs/lut_lib.scd`):**
+- Created shared random generators with musical weighting
+- `freq(min, max, bias)` - biased frequency (bias > 1 = low bias)
+- `time(min, max, bias)` - biased delay times
+- `curved(max, bias)` - biased 0-max range
+- `linear`, `exp`, `int`, `choose`, `chooseWeighted`
+- Compound generators: `clouds()`, `lofi()`, `ring()`, `comb()`, `delay()`
+- `buildPair(seed, voiceHome, voiceGen, fxHome, fxGen)` - builds voice+FX LUTs
+- Engines can override bias per-param
+
+**4-Op FM Engine (`synthdefs/fm4op.scd`):**
+- 8 TX81Z-style algorithms (series, parallel, branching)
+- 4 operators with per-op ratio, level, feedback
+- Fine tuning on ops 1 & 3, global feedback, brightness
+- Harmonic ratio weighting: `[1, 2, 3, 4, 0.5, 1.5, 2.5...]`
+- Algorithm distribution: equal (not weighted)
+- FX chain B: wavefold → chorus → filter → delay → clouds
+- Added `~fxWavefold` and `~fxFilter` to fx_lib.scd
+
+**DRY Improvements:**
+- Centralized library loading in main.scd (fx_lib + lut_lib before engines)
+- Removed fx_lib loading from individual engine files
+- Added engine spec validation in `~loadEngine` (warns on missing keys)
+- Created `~getEngineParamNames` helper - derives param names from current engine
+- Removed hardcoded drone param names from main.scd
+- Replaced all `~drone.set` with `~synth.set` for consistency
+
+**Bug Fixes:**
+- Fixed "Non Boolean in test" error: `engine[\implemented]` nil check
+- Fixed fm4op SynthDef not compiling: restructured to match engine file pattern
+
+---
 
 ### 2025-12-31 (Session 8)
 
@@ -69,6 +118,29 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - Parameters now applied only after server confirms node is ready
 
 **Root Cause:** Race condition - `~applyVoiceState`/`~applyFxState` called before server registered new synth
+
+**Feedback Engine Enhancements:**
+- Added exciter filtering (exciter_freq, exciter_res params)
+- Added slow LFO modulation for oceanic movement (lfo_rate, lfo_depth params)
+- 5 LFOs at golden-ratio-spaced rates modulating filter freqs, delay times, cross-feed
+- Fixed delay time ranges (0.005-0.5s instead of 0.0001-0.5s) for lower pitched tones
+- Reduced resonance and feedback maxes for less constant self-oscillation
+
+**FX Library Architecture:**
+- Created `synthdefs/fx_lib.scd` - shared FX building blocks
+- Blocks: lofi, ring, comb, delay, clouds, shimmer, freeze, tape, chorus, reverb, EQ, comp, filterBank, filterBank4, pitchShift, dualPitch, freqShift
+- Each block is a function returning UGen graph, evaluated at SynthDef compile time
+- Engines can compose different FX chains while staying DRY
+
+**Feedback Engine FX Chain Overhaul:**
+- New chain: tape → filter bank → shimmer → freeze → clouds → EQ → comp
+- 25 FX params (was 19): tape(2), filterBank4(10), shimmer(4), freeze(2), clouds(7)
+- EQ + Comp hardcoded at end of every chain (not in LUT)
+- Engine-specific FX - drone keeps original chain, feedback has new ethereal chain
+
+**Voice Params Update:**
+- Feedback now has 24 voice params (was 20, then 22, now 24)
+- Added: exciter_freq, exciter_res, lfo_rate, lfo_depth
 
 ---
 
