@@ -262,7 +262,7 @@ SynthDef(\feedbackNetwork, {
 		voiceLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = safe home: gentle feedback, low freqs, moderate delays
-				Float32Array[
+				[
 					0.5, 200, 0.2, 0.02,    // path 1: gentle
 					0.5, 300, 0.2, 0.025,   // path 2
 					0.5, 400, 0.2, 0.03,    // path 3
@@ -270,7 +270,7 @@ SynthDef(\feedbackNetwork, {
 					0.5, 0, 0.2, 0.15       // master_fb, exciter(noise), level, cross
 				]
 			} {
-				Float32Array[
+				[
 					// Path 1
 					rrand(0.1, 2.0),                                    // gain
 					exprand(20, 8000).pow(0.6).linexp(0, 1, 20, 8000), // freq (bias low)
@@ -303,9 +303,9 @@ SynthDef(\feedbackNetwork, {
 		fxLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = dry FX
-				Float32Array[16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0]
+				[16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0]
 			} {
-				Float32Array[
+				[
 					rrand(4, 16),              // lofi_bits
 					exprand(1000, 48000),      // lofi_rate
 					rrand(0.0, 0.5),           // lofi_mix (bias subtle)

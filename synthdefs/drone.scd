@@ -301,7 +301,7 @@ SynthDef(\chaosDrone, {
 		voiceLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = home base: 55Hz sine, no FX
-				Float32Array[
+				[
 					55, 0, 0.5,           // osc1: 55Hz sine
 					55, 0, 0.5, 0, 1,     // osc2: 55Hz sine, no track
 					0, 0, 0,              // no FM, OSC1 mode, no combo mix
@@ -310,7 +310,7 @@ SynthDef(\chaosDrone, {
 					0                      // reserved
 				]
 			} {
-				Float32Array[
+				[
 					// Osc1 - bias toward low frequencies
 					{ rrand(20.0, 2000.0) }.().pow(1.8).linexp(0, 1, 20, 2000),
 					4.rand,  // wave
@@ -344,9 +344,9 @@ SynthDef(\chaosDrone, {
 		fxLut = 65536.collect { |i|
 			if(i == 0) {
 				// State 0 = dry FX
-				Float32Array[16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0]
+				[16, 48000, 0, 440, 0, 0, 440, 0.5, 0, 250, 0, 0, 0.5, 0.5, 0.5, 0.5, 0, 0, 0]
 			} {
-				Float32Array[
+				[
 					rrand(4, 16),              // lofi_bits
 					exprand(1000, 48000),      // lofi_rate
 					rrand(0.0, 0.5),           // lofi_mix (bias subtle)
