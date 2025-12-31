@@ -192,19 +192,8 @@ s.waitForBoot({
 		};
 	};
 
-	// Enter engine page
-	~enterEnginePage = {
-		~onEnginePage = true;
-		~updateEnginePageLEDs.();
-		"[Griddlecake] Entered engine select page".postln;
-	};
-
-	// Exit engine page
-	~exitEnginePage = {
-		~onEnginePage = false;
-		~updateGridLEDs.();
-		"[Griddlecake] Returned to main UI".postln;
-	};
+	// Note: ~enterEnginePage and ~exitEnginePage are defined inside ~connectGrid
+	// because they depend on ~grid and LED update functions
 
 	// ========================================
 	// GESTURE RECORDER
@@ -1031,6 +1020,22 @@ s.waitForBoot({
 
 				~grid.led(x, 0, brightness);
 			};
+
+			~grid.ledDirty = true;  // Force refresh
+		};
+
+		// Enter engine page
+		~enterEnginePage = {
+			~onEnginePage = true;
+			~updateEnginePageLEDs.();
+			"[Griddlecake] Entered engine select page".postln;
+		};
+
+		// Exit engine page
+		~exitEnginePage = {
+			~onEnginePage = false;
+			~updateGridLEDs.();
+			"[Griddlecake] Returned to main UI".postln;
 		};
 
 		// Engine page key handler
