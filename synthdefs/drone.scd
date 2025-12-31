@@ -312,11 +312,11 @@ SynthDef(\chaosDrone, {
 			} {
 				[
 					// Osc1 - bias toward low frequencies
-					{ rrand(20.0, 2000.0) }.().pow(1.8).linexp(0, 1, 20, 2000),
+					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),
 					4.rand,  // wave
 					rrand(0.01, 0.99),  // pw
 					// Osc2
-					{ rrand(20.0, 2000.0) }.().pow(1.8).linexp(0, 1, 20, 2000),
+					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),
 					4.rand,
 					rrand(0.01, 0.99),
 					2.rand,  // track
@@ -331,7 +331,7 @@ SynthDef(\chaosDrone, {
 					rrand(0.0, 0.2),
 					rrand(0.0, 0.2),
 					// Filter - bias toward low/mid
-					{ rrand(20.0, 16000.0) }.().pow(1.5).linexp(0, 1, 20, 16000),
+					rrand(0.0, 1.0).pow(1.5).linexp(0, 1, 20, 16000),
 					rrand(0.0, 0.8),
 					4.rand,  // filter type
 					2.rand,  // track
@@ -350,10 +350,10 @@ SynthDef(\chaosDrone, {
 					rrand(4, 16),              // lofi_bits
 					exprand(1000, 48000),      // lofi_rate
 					rrand(0.0, 0.5),           // lofi_mix (bias subtle)
-					{ rrand(20.0, 2000.0) }.().pow(1.8).linexp(0, 1, 20, 2000),  // ring_freq
+					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),  // ring_freq
 					4.rand,                    // ring_wave
 					rrand(0.0, 0.4),           // ring_mix
-					{ rrand(20.0, 2000.0) }.().pow(1.8).linexp(0, 1, 20, 2000),  // comb_freq
+					rrand(0.0, 1.0).pow(1.8).linexp(0, 1, 20, 2000),  // comb_freq
 					exprand(0.1, 10),          // comb_decay
 					rrand(0.0, 0.5),           // comb_mix
 					exprand(1, 2000),          // delay_time

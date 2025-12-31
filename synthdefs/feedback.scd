@@ -278,13 +278,13 @@ SynthDef(\feedbackNetwork, {
 			} {
 				[
 					// Path 1-4
-					rrand(0.1, 2.0), exprand(20, 4000).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), exprand(0.005, 0.5).pow(0.4).linexp(0, 1, 0.005, 0.5),
-					rrand(0.1, 2.0), exprand(20, 4000).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), exprand(0.005, 0.5).pow(0.4).linexp(0, 1, 0.005, 0.5),
-					rrand(0.1, 2.0), exprand(20, 4000).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), exprand(0.005, 0.5).pow(0.4).linexp(0, 1, 0.005, 0.5),
-					rrand(0.1, 2.0), exprand(20, 4000).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), exprand(0.005, 0.5).pow(0.4).linexp(0, 1, 0.005, 0.5),
+					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
+					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
+					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
+					rrand(0.1, 2.0), rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6), rrand(0.0, 1.0).pow(0.4).linexp(0, 1, 0.005, 0.5),
 					// Global
 					rrand(0.2, 0.85), 4.rand, rrand(0.1, 0.6),
-					exprand(20, 4000).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6),
+					rrand(0.0, 1.0).pow(0.5).linexp(0, 1, 20, 4000), rrand(0.0, 0.8).pow(0.6),
 					rrand(0.0, 0.5), exprand(0.01, 0.2), rrand(0.1, 0.8),
 				]
 			}
