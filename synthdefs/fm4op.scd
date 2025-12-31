@@ -4,6 +4,7 @@
 (
 	key: \fm4op,
 	name: "4-Op FM",
+	implemented: true,
 
 	synthDef: {
 		SynthDef(\fm4op, {

@@ -157,7 +157,7 @@ s.waitForBoot({
 		if (engine.isNil) {
 			"[Griddlecake] Unknown engine: %".format(newEngineKey).warn;
 		} {
-			if (engine[\implemented].not) {
+			if ((engine[\implemented] ? false).not) {
 				"[Griddlecake] Engine not implemented: %".format(newEngineKey).warn;
 			} {
 				var oldSynth = ~synth;
@@ -809,7 +809,7 @@ s.waitForBoot({
 								if (engineIdx < ~engineOrder.size) {
 									var engineKey = ~engineOrder[engineIdx];
 									var engine = ~engines[engineKey];
-									if (engine[\implemented]) {
+									if (engine[\implemented] ? false) {
 										~switchEngine.(engineKey);
 									} {
 										"[Grid] Engine % not implemented".format(engineKey).postln;
@@ -1047,7 +1047,7 @@ s.waitForBoot({
 					var engine = ~engines[key];
 					var brightness = case
 						{ key == ~currentEngine } { GridInterface.ledFull }
-						{ engine[\implemented] } { GridInterface.ledMedium }
+						{ engine[\implemented] ? false } { GridInterface.ledMedium }
 						{ true } { GridInterface.ledDim };
 					~grid.led(x, 0, brightness);
 				};
