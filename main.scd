@@ -1024,8 +1024,10 @@ s.waitForBoot({
 		};
 
 		// Enter engine page
+		~enginePageEntryTime = 0;
 		~enterEnginePage = {
 			~onEnginePage = true;
+			~enginePageEntryTime = Main.elapsedTime;
 			~updateEnginePageLEDs.();
 			"[Griddlecake] Entered engine select page".postln;
 		};
@@ -1039,12 +1041,16 @@ s.waitForBoot({
 
 		// Engine page key handler
 		~handleEnginePage = { |x, y, state|
-			if (state == 1) {  // press only
-				case
-				{ x == 0 && (y == 0) } {
-					// Back button
-					~exitEnginePage.();
-				}
+			// Debounce: ignore events within 300ms of entering engine page
+			if ((Main.elapsedTime - ~enginePageEntryTime) < 0.3) {
+				// Ignore - too soon after entry
+			} {
+				if (state == 1) {  // press only
+					case
+					{ x == 0 && (y == 0) } {
+						// Back button
+						~exitEnginePage.();
+					}
 				{ y == 0 && (x > 0) && (x <= ~engineOrder.size) } {
 					// Engine selection (row 0, cols 1-N)
 					var engineKey = ~engineOrder[x - 1];
@@ -1058,6 +1064,7 @@ s.waitForBoot({
 						~grid.led(x, y, GridInterface.ledDim);
 						AppClock.sched(0.1, { ~updateEnginePageLEDs.(); nil });
 					};
+				};
 				};
 			};
 		};
