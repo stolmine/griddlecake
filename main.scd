@@ -95,19 +95,18 @@ s.waitForBoot({
 	// ========================================
 
 	~voiceParamNames = [
-		// Oscillators
+		// Oscillators (0-2)
 		\osc1_freq, \osc1_wave, \osc1_pw,
+		// Osc2 (3-7)
 		\osc2_freq, \osc2_wave, \osc2_pw, \osc2_track, \osc2_ratio,
+		// Combo (8-10)
 		\fm_amount, \combo_mode, \combo_mix,
-
-		// Noise
+		// Noise (11-14)
 		\noise_type, \noise_level, \noise_to_osc1, \noise_to_osc2,
-
-		// Filter
-		\filter_freq, \filter_res, \filter_type, \filter_track,
-
-		// Output
-		\output_level
+		// Filter (15-18)
+		\filter_freq, \filter_res, \filter_type, \filter_track
+		// Note: index 19 is reserved in LUT, not applied
+		// output_level is user-controlled, not from LUT
 	];
 
 	~fxParamNames = [
