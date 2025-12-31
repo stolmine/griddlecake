@@ -40,7 +40,7 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 ├─────────────────────────────────────────────────────┤
 │  ~fxLib (shared FX blocks)                          │
 ├─────────────────────────────────────────────────────┤
-│  Engines: drone | feedback | fm4op                  │
+│  Engines: drone | feedback | fm4op | wavetable      │
 │  (hot-swappable with per-engine LUT + FX chain)     │
 └─────────────────────────────────────────────────────┘
 ```
@@ -64,6 +64,7 @@ Monome Grid Chaos Drone Synthesizer - Pure SuperCollider implementation.
 | drone | 20 | 19 | 2-osc + bitwise combo modes |
 | feedback | 24 | 25 | 4 cross-feeding filter+delay paths |
 | fm4op | 20 | 20 | 4-operator FM with 8 algorithms |
+| wavetable | 20 | 20 | 2-osc wavetable with 8 banks |
 
 ---
 

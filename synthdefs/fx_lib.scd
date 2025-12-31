@@ -113,6 +113,19 @@
 	XFade2.ar(sig, verb, mix * 2 - 1)
 };
 
+// Phaser (cascaded allpass filters with LFO modulation)
+~fxPhaser = { |sig, rate, depth, mix|
+	var mod = SinOsc.kr(rate) * depth;
+	var freq = mod.linexp(-1, 1, 200, 4000);
+	var phased = sig;
+	// 6-stage allpass cascade for classic phaser sweep
+	6.do { |i|
+		var stageFreq = freq * (1 + (i * 0.15));
+		phased = AllpassN.ar(phased, 0.01, stageFreq.reciprocal.clip(0.0001, 0.01), 0);
+	};
+	XFade2.ar(sig, phased, mix * 2 - 1)
+};
+
 // Fixed Filter Bank (8 parallel resonant bandpass filters)
 // freqs: array of 8 frequencies, gains: array of 8 gains (0-1), res: shared resonance
 ~fxFilterBank = { |sig, f1, f2, f3, f4, f5, f6, f7, f8, g1, g2, g3, g4, g5, g6, g7, g8, res, mix|

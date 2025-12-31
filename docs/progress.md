@@ -45,18 +45,48 @@ See [Implementation](implementation.md) for the high-level roadmap.
 - 4-Op FM engine (`synthdefs/fm4op.scd`) - 8 algorithms, harmonic ratio weighting
 - Centralized library loading (fx_lib, lut_lib loaded before engines)
 - Engine-derived param names (no hardcoding)
+- Wavetable engine (`synthdefs/wavetable.scd`) - 2 oscs, 8 banks, FX Chain C
+- Modular refactor (main.scd split into clock_sequencer.scd + grid_handler.scd)
 
 **In Progress:**
 - Phase 5: Polish (preset UI refinement, save/load, visual feedback improvements)
 
 **Next Steps:**
 1. Continue Phase 5 polish work
-2. Test FM engine in performance
-3. Consider additional engines (wavetable, additive, modal)
+2. Test wavetable engine in performance
+3. Consider additional engines (additive, modal)
 
 ---
 
 ## Session Log
+
+### 2025-12-31 (Session 10)
+
+**FM4op Slew Fix:**
+- Added missing VarLag to fm4op.scd for slew parameter morphing
+- Now properly interpolates all voice/FX params like other engines
+
+**Wavetable Engine (`synthdefs/wavetable.scd`):**
+- 2 wavetable oscillators with independent bank/position selection
+- 8 wavetable banks (basic, harmonic, formant, noise, spectral, pwm, supersaw, vocal)
+- Per-osc controls: bank, position, detune, level
+- Mix modes: blend, ring mod, AM
+- SVF filter with freq, res, type
+- FX Chain C: phaser → chorus → delay → clouds
+
+**New FX Block:**
+- Added `~fxPhaser` to fx_lib.scd (rate, depth, feedback, mix)
+- 6-stage phaser with LFO modulation
+
+**Modular Refactor:**
+- Split main.scd into three files for maintainability:
+  - `main.scd` (466 lines) - boot, state management, engine switching
+  - `clock_sequencer.scd` (213 lines) - clock, transport, sequencer logic
+  - `grid_handler.scd` (476 lines) - grid zones, LED feedback, input handling
+- Total reduction: 1359 → 1155 lines (modular loading)
+- Each file stays under agent-readable size limits
+
+---
 
 ### 2025-12-31 (Session 9)
 

@@ -195,9 +195,10 @@ lib[\choose].([1, 2, 3, 4, 0.5, 1.5, 2.5])
 
 | Key | Name | Voice | FX | FX Chain |
 |-----|------|-------|----|----|
-| `\drone` | Chaos Drone | 20 | 19 | lofi→ring→comb→delay→clouds |
-| `\feedback` | Feedback Network | 24 | 25 | tape→filterBank→shimmer→freeze→clouds |
-| `\fm4op` | 4-Op FM | 20 | 20 | wavefold→chorus→filter→delay→clouds |
+| `\drone` | Chaos Drone | 20 | 19 | lofi→ring→comb→delay→clouds (Chain A) |
+| `\feedback` | Feedback Network | 24 | 25 | tape→filterBank→shimmer→freeze→clouds (Chain B) |
+| `\fm4op` | 4-Op FM | 20 | 20 | wavefold→chorus→filter→delay→clouds (Chain B) |
+| `\wavetable` | Wavetable | 20 | 20 | phaser→chorus→delay→clouds (Chain C) |
 
 ---
 

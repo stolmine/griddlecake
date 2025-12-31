@@ -33,7 +33,9 @@ SynthDef(\fm4op, {
 	// Master
 	eq_low = 0, eq_mid = 0, eq_high = 0,
 	comp_thresh = 0.5, comp_ratio = 4,
-	output_level = 0.5;
+	output_level = 0.5,
+	// Slew control
+	slew_time = 0.1, slew_curve = 0;
 
 	var sig, env;
 	var f1, f2, f3, f4;
@@ -41,6 +43,48 @@ SynthDef(\fm4op, {
 	var mod2, mod3, mod4;
 	var fbGlobal;
 	var alg;
+
+	// Per-param slew with curve (VarLag: in, time, warp)
+	base_freq = VarLag.kr(base_freq, slew_time, slew_curve);
+	algorithm = VarLag.kr(algorithm, slew_time, slew_curve);
+	op1_ratio = VarLag.kr(op1_ratio, slew_time, slew_curve);
+	op2_ratio = VarLag.kr(op2_ratio, slew_time, slew_curve);
+	op3_ratio = VarLag.kr(op3_ratio, slew_time, slew_curve);
+	op4_ratio = VarLag.kr(op4_ratio, slew_time, slew_curve);
+	op1_level = VarLag.kr(op1_level, slew_time, slew_curve);
+	op2_level = VarLag.kr(op2_level, slew_time, slew_curve);
+	op3_level = VarLag.kr(op3_level, slew_time, slew_curve);
+	op4_level = VarLag.kr(op4_level, slew_time, slew_curve);
+	op1_fb = VarLag.kr(op1_fb, slew_time, slew_curve);
+	op2_fb = VarLag.kr(op2_fb, slew_time, slew_curve);
+	op3_fb = VarLag.kr(op3_fb, slew_time, slew_curve);
+	op4_fb = VarLag.kr(op4_fb, slew_time, slew_curve);
+	op1_fine = VarLag.kr(op1_fine, slew_time, slew_curve);
+	op3_fine = VarLag.kr(op3_fine, slew_time, slew_curve);
+	fb_global = VarLag.kr(fb_global, slew_time, slew_curve);
+	brightness = VarLag.kr(brightness, slew_time, slew_curve);
+	// FX params
+	fold_drive = VarLag.kr(fold_drive, slew_time, slew_curve);
+	fold_sym = VarLag.kr(fold_sym, slew_time, slew_curve);
+	fold_mix = VarLag.kr(fold_mix, slew_time, slew_curve);
+	chorus_rate = VarLag.kr(chorus_rate, slew_time, slew_curve);
+	chorus_depth = VarLag.kr(chorus_depth, slew_time, slew_curve);
+	chorus_mix = VarLag.kr(chorus_mix, slew_time, slew_curve);
+	filt_freq = VarLag.kr(filt_freq, slew_time, slew_curve);
+	filt_res = VarLag.kr(filt_res, slew_time, slew_curve);
+	filt_mode = VarLag.kr(filt_mode, slew_time, slew_curve);
+	filt_mix = VarLag.kr(filt_mix, slew_time, slew_curve);
+	delay_time = VarLag.kr(delay_time, slew_time, slew_curve);
+	delay_fb = VarLag.kr(delay_fb, slew_time, slew_curve);
+	delay_mix = VarLag.kr(delay_mix, slew_time, slew_curve);
+	clouds_pos = VarLag.kr(clouds_pos, slew_time, slew_curve);
+	clouds_size = VarLag.kr(clouds_size, slew_time, slew_curve);
+	clouds_dens = VarLag.kr(clouds_dens, slew_time, slew_curve);
+	clouds_tex = VarLag.kr(clouds_tex, slew_time, slew_curve);
+	clouds_mode = VarLag.kr(clouds_mode, slew_time, slew_curve);
+	clouds_rvb = VarLag.kr(clouds_rvb, slew_time, slew_curve);
+	clouds_mix = VarLag.kr(clouds_mix, slew_time, slew_curve);
+	output_level = VarLag.kr(output_level, slew_time, slew_curve);
 
 	// Operator frequencies with fine tuning
 	f1 = base_freq * op1_ratio * (1 + (op1_fine * 0.01));
